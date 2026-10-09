@@ -1,0 +1,43 @@
+{% extends "base_management.html" %}
+{% load i18n static ui_tags %}
+{% block content %}
+<div class="rd-page-header">
+  <h1 class="rd-heading-xl mb-1">{% trans "Payment methods report" %}</h1>
+  <p class="rd-text-muted mb-0">{% trans "Money received per payment method and recipient, for statement matching." %}</p>
+</div>
+
+{% active_filter_count as report_active %}
+{% include "partials/filter_card_open.html" with active_count=report_active indicator_id="payment-methods-report-htmx-indicator" card_open=True %}
+    <form
+      method="get"
+      class="row g-3 align-items-end"
+      hx-get="{% url 'reports:payment_methods_report' %}"
+      hx-target="#payment-methods-report-results"
+      hx-push-url="true"
+      hx-indicator="#payment-methods-report-htmx-indicator"
+    >
+      <div class="col-md-4 col-lg-3">{{ form.payment_method.label_tag }}{{ form.payment_method }}</div>
+      <div class="col-md-4 col-lg-3">{{ form.recipient.label_tag }}{{ form.recipient }}</div>
+      <div class="col-md-4 col-lg-2">{{ form.kind.label_tag }}{{ form.kind }}</div>
+      <div class="col-md-4 col-lg-2">{{ form.date_from.label_tag }}{{ form.date_from }}</div>
+      <div class="col-md-4 col-lg-2">{{ form.date_to.label_tag }}{{ form.date_to }}</div>
+      <div class="col-12 d-flex flex-wrap gap-2">
+        <button class="btn btn-primary" type="submit">{% trans "Apply" %}</button>
+        <a class="btn btn-outline-secondary" href="{% url 'reports:payment_methods_report' %}">{% trans "Reset" %}</a>
+      </div>
+    </form>
+{% include "partials/filter_card_close.html" %}
+
+<div
+  class="rd-datagrid"
+  id="payment-methods-report-results"
+  hx-boost="true"
+  hx-target="#payment-methods-report-results"
+  hx-swap="innerHTML"
+  hx-push-url="true"
+  hx-indicator="#payment-methods-report-htmx-indicator"
+>
+  {% include "reports/partials/payment_methods_report_results.html" %}
+</div>
+<script src="{% static 'js/recipient-select-filter.js' %}{{ static_cache_query }}" defer></script>
+{% endblock %}

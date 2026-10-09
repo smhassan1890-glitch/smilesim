@@ -1,0 +1,131 @@
+{% extends "base_management.html" %}
+{% load i18n humanize ui_tags %}
+{% block content %}
+<div class="rd-page-header">
+  <div>
+    <h1 class="rd-heading-xl mb-1">{% trans "Audit log" %}</h1>
+    <p class="rd-text-muted mb-0">{% trans "Append-only record of who changed what." %}</p>
+  </div>
+</div>
+
+{% active_filter_count as audit_active %}
+{% include "partials/filter_card_open.html" with active_count=audit_active %}
+    <form method="get" class="row g-3 align-items-end">
+      <div class="col-12 col-md-6 col-lg-4">
+        <label class="form-label" for="audit-q">{% trans "Search target" %}</label>
+        <input type="search" id="audit-q" name="q" class="form-control form-control-sm" value="{{ request.GET.q|default:'' }}" placeholder="{% trans 'Object id or text' %}">
+      </div>
+      <div class="col-md-4 col-lg-3">
+        <label class="form-label" for="audit-action">{% trans "Action" %}</label>
+        <select id="audit-action" name="action" class="form-select form-select-sm">
+          <option value="">{% trans "All" %}</option>
+          {% for value, label in action_choices %}
+            <option value="{{ value }}" {% if request.GET.action == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-4 col-lg-3">
+        <label class="form-label" for="audit-model">{% trans "Model" %}</label>
+        <select id="audit-model" name="model" class="form-select form-select-sm">
+          <option value="">{% trans "All" %}</option>
+          {% for m in models_seen %}
+            <option value="{{ m }}" {% if request.GET.model == m %}selected{% endif %}>{{ m }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-4 col-lg-3">
+        <label class="form-label" for="audit-actor">{% trans "Actor" %}</label>
+        <select id="audit-actor" name="actor" class="form-select form-select-sm">
+          <option value="">{% trans "All" %}</option>
+          {% for a in actors %}
+            <option value="{{ a.id }}" {% if request.GET.actor == a.id|stringformat:'s' %}selected{% endif %}>{{ a.username }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-4 col-lg-3">
+        <label class="form-label" for="audit-from">{% trans "Date from" %}</label>
+        <input type="date" id="audit-from" name="date_from" class="form-control form-control-sm" value="{{ request.GET.date_from|default:'' }}">
+      </div>
+      <div class="col-md-4 col-lg-3">
+        <label class="form-label" for="audit-to">{% trans "Date to" %}</label>
+        <input type="date" id="audit-to" name="date_to" class="form-control form-control-sm" value="{{ request.GET.date_to|default:'' }}">
+      </div>
+      <div class="col-12 d-flex flex-wrap gap-2">
+        <button class="btn btn-primary btn-sm" type="submit">{% trans "Apply" %}</button>
+        <a class="btn btn-outline-secondary btn-sm" href="{% url 'audit:audit_log_list' %}">{% trans "Reset" %}</a>
+      </div>
+    </form>
+{% include "partials/filter_card_close.html" %}
+
+<div class="rd-card overflow-hidden rd-datagrid">
+  <div class="rd-datagrid-toolbar rd-card-header py-2 d-flex flex-wrap align-items-center justify-content-between gap-2">
+    <span>{% trans "Audit events" %}</span>
+  </div>
+  <div class="rd-table-dual rd-datagrid-body">
+    <div class="d-none d-md-block rd-data-shell">
+      <div class="table-responsive border-0">
+        <table class="table mb-0 align-middle rd-table-modern">
+          <thead>
+            <tr>
+              <th>{% trans "When" %}</th>
+              <th>{% trans "Actor" %}</th>
+              <th>{% trans "Action" %}</th>
+              <th>{% trans "Target" %}</th>
+              <th>{% trans "Changes" %}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in page_obj.object_list %}
+              <tr>
+                <td class="text-secondary small">{{ row.created_at|date:"Y-m-d H:i:s" }}</td>
+                <td>
+                  {% if row.actor %}{{ row.actor.username }}{% else %}<span class="text-muted">—</span>{% endif %}
+                  {% if row.ip %}<div class="text-secondary small">{{ row.ip }}</div>{% endif %}
+                </td>
+                <td><span class="rd-badge rd-badge--neutral">{{ row.get_action_display }}</span></td>
+                <td>
+                  <div><code class="small">{{ row.model_label }}#{{ row.object_id|default:"—" }}</code></div>
+                  <div class="small">{{ row.object_repr|default:"" }}</div>
+                </td>
+                <td>
+                  {% if row.changes %}
+                    <details>
+                      <summary class="small text-secondary" style="cursor:pointer;">{% trans "View" %}</summary>
+                      <pre class="small mb-0 mt-1" style="white-space:pre-wrap; word-break:break-word;">{{ row.changes|pprint }}</pre>
+                    </details>
+                  {% else %}
+                    <span class="text-muted">—</span>
+                  {% endif %}
+                </td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="5" class="text-center py-4"><div class="empty-state border-0 mb-0">{% trans "No audit events match your filters." %}</div></td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="d-md-none rd-mobile-stack p-2">
+      {% for row in page_obj.object_list %}
+        <div class="rd-mobile-row-card">
+          <div class="d-flex justify-content-between align-items-start gap-2">
+            <div class="small text-secondary">{{ row.created_at|date:"Y-m-d H:i:s" }}</div>
+            <span class="rd-badge rd-badge--neutral">{{ row.get_action_display }}</span>
+          </div>
+          <div class="fw-semibold mt-2">{% if row.actor %}{{ row.actor.username }}{% else %}—{% endif %}</div>
+          <div><code class="small">{{ row.model_label }}#{{ row.object_id|default:"—" }}</code></div>
+          {% if row.object_repr %}<div class="small mt-1">{{ row.object_repr }}</div>{% endif %}
+          {% if row.ip %}<div class="small text-secondary mt-1">{{ row.ip }}</div>{% endif %}
+        </div>
+      {% empty %}
+        <div class="text-center text-secondary py-4">{% trans "No audit events match your filters." %}</div>
+      {% endfor %}
+    </div>
+  </div>
+  {% if page_obj.has_other_pages %}
+    {% include "partials/pagination.html" with page_obj=page_obj %}
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,48 @@
+{% extends "base_management.html" %}
+{% load i18n %}
+{% block content %}
+<div class="rd-page-header d-flex flex-wrap justify-content-between align-items-start gap-3">
+  <div>
+    <h1 class="rd-heading-xl mb-1">{% trans "Payment methods" %}</h1>
+    <p class="rd-text-muted mb-0">{% trans "Tiles shown on the employee sales screen." %}</p>
+  </div>
+  <a class="btn btn-primary" href="{% url 'sales:payment_method_create' %}">{% trans "New" %}</a>
+</div>
+<div class="rd-card overflow-hidden">
+  <div class="list-group list-group-flush rd-list-flush">
+    {% for m in page_obj %}
+      <div class="list-group-item d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div>
+          <div class="fw-semibold">{{ m.name }}</div>
+          <div class="small rd-text-muted mt-1">
+            <span class="fw-semibold">{% trans "Recipients" %}:</span>
+            {% for r in m.active_recipient_list %}{{ r.name }}{% if not forloop.last %}، {% endif %}{% empty %}—{% endfor %}
+          </div>
+          <div class="small mt-1">
+            {% if m.is_active %}
+              <span class="rd-badge rd-badge--paid">{% trans "Active" %}</span>
+            {% else %}
+              <span class="rd-badge rd-badge--neutral">{% trans "Inactive" %}</span>
+            {% endif %}
+          </div>
+        </div>
+        <div class="d-flex gap-2">
+          <a class="btn btn-sm btn-outline-secondary" href="{% url 'sales:payment_method_edit' m.pk %}">{% trans "Edit" %}</a>
+          <form
+            method="post"
+            action="{% url 'sales:payment_method_delete' m.pk %}"
+            class="m-0"
+            onsubmit="return confirm('{% blocktrans with name=m.name %}Delete payment method “{{ name }}”? This cannot be undone.{% endblocktrans %}');"
+          >
+            {% csrf_token %}
+            <button type="submit" class="btn btn-sm btn-outline-danger">{% trans "Delete" %}</button>
+          </form>
+        </div>
+      </div>
+    {% empty %}
+      <div class="list-group-item text-secondary">{% trans "No payment methods." %}</div>
+    {% endfor %}
+  </div>
+  {% include "partials/pagination.html" %}
+</div>
+{% endblock %}

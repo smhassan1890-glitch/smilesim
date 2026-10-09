@@ -1,0 +1,44 @@
+{% load i18n static %}
+<!DOCTYPE html>
+<html lang="{{ LANGUAGE_CODE }}" dir="{{ html_dir }}">
+<head>
+  <meta charset="utf-8">
+  {% include "partials/theme_head.html" %}
+  {% include "partials/favicon.html" %}
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>{% block title %}{{ title|default:_("Sales") }}{% endblock %} · {{ site_name }}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="{{ bootstrap_css }}" rel="stylesheet">
+  <link href="{% static 'css/design-system.css' %}{{ static_cache_query }}" rel="stylesheet">
+  <link href="{% static 'css/app.css' %}{{ static_cache_query }}" rel="stylesheet">
+  <script src="{% static 'vendor/htmx.min.js' %}{{ static_cache_query }}"></script>
+  <script src="{% static 'js/theme.js' %}{{ static_cache_query }}" defer></script>
+  <script src="{% static 'js/data-ui.js' %}{{ static_cache_query }}" defer></script>
+</head>
+<body class="rd-body rd-employee-app app-shell">
+  <header class="rd-employee-topbar">
+    <div class="rd-employee-title">{% block employee_header %}{% trans "Sales entry" %}{% endblock %}</div>
+    <div class="d-flex align-items-center gap-2">
+      <form action="{% url 'set_language' %}" method="post" class="d-flex mb-0">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+        <label class="visually-hidden" for="rd-lang-emp">{% trans "Language" %}</label>
+        <select name="language" id="rd-lang-emp" class="form-select form-select-sm rd-lang-select" onchange="this.form.submit()">
+          {% get_current_language as LANGUAGE_CODE %}
+          {% for code, label in languages %}
+            <option value="{{ code }}" {% if code == LANGUAGE_CODE %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </form>
+      {% include "partials/theme_toggle.html" with variant="shell" %}
+      {% include "partials/user_menu.html" %}
+    </div>
+  </header>
+  <div class="rd-employee-main{% block employee_main_class %}{% endblock %}">
+    {% include "partials/messages.html" %}
+    {% block content %}{% endblock %}
+  </div>
+</body>
+</html>

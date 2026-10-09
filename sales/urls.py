@@ -1,0 +1,53 @@
+from django.urls import path
+
+from sales import views
+
+app_name = "sales"
+
+urlpatterns = [
+    path("employee/sales/", views.employee_entry, name="employee_entry"),
+    path(
+        "employee/sales/customer-payment-submission/",
+        views.employee_submit_customer_payment_submission,
+        name="employee_submit_customer_payment_submission",
+    ),
+    path(
+        "employee/sales/api/payer-by-number/",
+        views.api_payer_by_number,
+        name="api_payer_by_number",
+    ),
+    path(
+        "employee/sales/api/payer-name-suggestions/",
+        views.api_payer_name_suggestions,
+        name="api_payer_name_suggestions",
+    ),
+    path("employee/sales/products/", views.employee_product_fragment, name="employee_product_fragment"),
+    path("employee/sales/recent/", views.employee_recent_sales, name="employee_recent_sales"),
+    path("employee/sales/<int:pk>/edit/", views.employee_sale_edit, name="employee_sale_edit"),
+    path("employee/sales/<int:pk>/delete/", views.employee_sale_delete, name="employee_sale_delete"),
+    path("management/sales/", views.management_sale_list, name="management_sale_list"),
+    path("management/sales/export.csv", views.sales_export_csv, name="sales_export_csv"),
+    path("management/sales/bulk-mark-paid/", views.bulk_sales_mark_paid, name="bulk_sales_mark_paid"),
+    path("management/sales/pending/", views.pending_payments, name="pending_payments"),
+    path(
+        "management/sales/pending/export.csv",
+        views.pending_payments_export_csv,
+        name="pending_payments_export_csv",
+    ),
+    path("management/sales/awaiting/", views.awaiting_approvals, name="awaiting_approvals"),
+    path(
+        "management/sales/awaiting/export.csv",
+        views.awaiting_approvals_export_csv,
+        name="awaiting_approvals_export_csv",
+    ),
+    path("management/sales/<int:pk>/approve/", views.sale_approve, name="sale_approve"),
+    path("management/sales/<int:pk>/reject/", views.sale_reject, name="sale_reject"),
+    path("management/sales/<int:pk>/mark-paid/", views.sale_mark_paid, name="sale_mark_paid"),
+    path("management/sales/<int:pk>/edit/", views.sale_edit, name="sale_edit"),
+    path("management/sales/<int:pk>/cancel/", views.sale_cancel, name="sale_cancel"),
+    path("management/sales/<int:pk>/delete/", views.sale_delete_permanent, name="sale_delete_permanent"),
+    path("management/payment-methods/", views.payment_method_list, name="payment_method_list"),
+    path("management/payment-methods/new/", views.payment_method_create, name="payment_method_create"),
+    path("management/payment-methods/<int:pk>/edit/", views.payment_method_edit, name="payment_method_edit"),
+    path("management/payment-methods/<int:pk>/delete/", views.payment_method_delete, name="payment_method_delete"),
+]

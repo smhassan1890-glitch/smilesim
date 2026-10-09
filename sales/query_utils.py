@@ -1,0 +1,101 @@
+"""Shared queryset helpers for sale listings."""
+
+from typing import Any, Dict, Optional
+
+from sales.models import Sale
+
+
+# Statuses that must NOT contribute to volume / profit / KPI aggregates.
+# AWAITING sales are credit-sales pending management approval — they are
+# real shipments but not yet acknowledged by the shop, so they sit in a
+# holding bay until approved or rejected.
+EXCLUDED_AGGREGATE_STATUSES = (
+    Sale.Status.CANCELLED,
+    Sale.Status.AWAITING,
+    Sale.Status.WRITTEN_OFF,
+)
+
+
+def confirmed_sales(queryset):
+    """Sales counted in volume / business KPIs.
+
+    Excludes cancelled, awaiting-approval, and written-off (uncollectible
+    customer debt) sales.
+    """
+    return queryset.exclude(status__in=EXCLUDED_AGGREGATE_STATUSES)
+
+
+# Statuses whose ``loss_snapshot`` should appear in the loss totals.
+# Includes write-offs (uncollectible debt converted into loss) on top of
+# regular pending/paid rows. Cancelled and awaiting rows are excluded
+# because their costs were either never realised or were refunded back
+# to the supplier.
+LOSS_INCLUDED_STATUSES = (
+    Sale.Status.PENDING,
+    Sale.Status.PAID,
+    Sale.Status.WRITTEN_OFF,
+)
+
+
+def loss_eligible_sales(queryset):
+    """Restrict to sales whose loss_snapshot counts in loss reports."""
+    return queryset.filter(status__in=LOSS_INCLUDED_STATUSES)
+
+
+def paid_sales_only(queryset):
+    """
+    Restrict to sales with confirmed payment.
+
+    Profit (``profit_snapshot``) must only be aggregated for **paid** sales.
+    Pending sales are recorded but not treated as realized profit until marked paid.
+    """
+    return queryset.filter(status=Sale.Status.PAID)
+
+
+def apply_management_sale_filter_data(qs, data: Optional[Dict[str, Any]], *, omit_status: bool = False):
+    """Apply ManagementSaleFilterForm-style filters to a Sale queryset."""
+    if not data:
+        return qs
+    if data.get("company"):
+        qs = qs.filter(company=data["company"])
+    if data.get("product"):
+        qs = qs.filter(product=data["product"])
+    if data.get("employee"):
+        qs = qs.filter(created_by=data["employee"])
+    if data.get("payment_method"):
+        qs = qs.filter(payment_method=data["payment_method"])
+    if not omit_status and data.get("status"):
+        qs = qs.filter(status=data["status"])
+    if data.get("date_from"):
+        qs = qs.filter(created_at__date__gte=data["date_from"])
+    if data.get("date_to"):
+        qs = qs.filter(created_at__date__lte=data["date_to"])
+    esim = data.get("esim")
+    if esim == "yes":
+        qs = qs.filter(is_esim=True)
+    elif esim == "no":
+        qs = qs.filter(is_esim=False)
+    return qs
+
+
+SALE_SORT_WHITELIST = {
+    "created_at": "created_at",
+    "sell": "sell_price_actual",
+    "profit": "profit_snapshot",
+    "status": "status",
+    "ref": "reference_number",
+    "payer": "payer_name",
+    "company": "company__name",
+    "product": "product__line__name",
+    "employee": "created_by__username",
+}
+
+
+def apply_sale_list_ordering(request, queryset, *, sort_param="sort", order_param="order"):
+    sort = (request.GET.get(sort_param) or "created_at").strip()
+    order = (request.GET.get(order_param) or "desc").lower()
+    field = SALE_SORT_WHITELIST.get(sort, "created_at")
+    if order not in ("asc", "desc"):
+        order = "desc"
+    prefix = "" if order == "asc" else "-"
+    return queryset.order_by(f"{prefix}{field}", f"{prefix}pk")

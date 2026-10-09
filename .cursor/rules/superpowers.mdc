@@ -1,0 +1,8 @@
+---
+description: Bootstrap the Superpowers skills library for every conversation
+alwaysApply: true
+---
+
+This project uses the Superpowers skills library in `.cursor/skills/`.
+
+At the start of every conversation, read `.cursor/skills/using-superpowers/SKILL.md` and follow it. To "invoke" a skill, read its `SKILL.md` from `.cursor/skills/<skill-name>/` with the Read tool before acting.

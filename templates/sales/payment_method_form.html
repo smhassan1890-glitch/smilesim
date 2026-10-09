@@ -1,0 +1,110 @@
+{% extends "base_management.html" %}
+{% load i18n %}
+{% block content %}
+<div class="mx-auto" style="max-width: 40rem;">
+  <h1 class="h3 mb-3">{{ title }}</h1>
+  <form method="post" enctype="multipart/form-data" class="d-grid gap-4">
+    {% csrf_token %}
+    <div class="app-card card">
+      <div class="card-body p-4 d-grid gap-3">
+        <div>
+          {{ form.name.label_tag }}
+          {{ form.name }}
+          {{ form.name.errors }}
+        </div>
+        <div>
+          {{ form.icon.label_tag }}
+          {{ form.icon }}
+          {% if form.icon.help_text %}<div class="form-text">{{ form.icon.help_text }}</div>{% endif %}
+          {{ form.icon.errors }}
+        </div>
+        <div class="form-check">
+          {{ form.is_active }}
+          <label class="form-check-label" for="{{ form.is_active.id_for_label }}">{{ form.is_active.label }}</label>
+        </div>
+      </div>
+    </div>
+
+    <div class="rd-card overflow-hidden">
+      <div class="rd-card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <div>
+          <div>{% trans "Recipients" %}</div>
+          <div class="small fw-normal rd-text-muted">{% trans "People who receive money on this method. Sellers pick one when recording a payment." %}</div>
+        </div>
+        <button type="button" class="btn btn-sm btn-outline-primary" id="recipient-add">{% trans "Add recipient" %}</button>
+      </div>
+      {{ formset.management_form }}
+      {% if formset.non_form_errors %}
+        <div class="rd-card-body pb-0">
+          {% for err in formset.non_form_errors %}<div class="small text-danger">{{ err }}</div>{% endfor %}
+        </div>
+      {% endif %}
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+          <thead>
+            <tr>
+              <th>{% trans "Name" %}</th>
+              <th style="width: 6.5rem;">{% trans "Sort order" %}</th>
+              <th class="text-center" style="width: 5rem;">{% trans "Active" %}</th>
+              <th class="text-center" style="width: 5rem;">{% trans "Delete" %}</th>
+            </tr>
+          </thead>
+          <tbody id="recipient-rows">
+            {% for f in formset %}
+              {% include "sales/partials/payment_recipient_row.html" with f=f %}
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="rd-card-body pt-2 small rd-text-muted">
+        {% trans "Recipients already used by sales or payments cannot be deleted — untick Active to hide them instead." %}
+      </div>
+    </div>
+    <template id="recipient-empty-form">
+      {% include "sales/partials/payment_recipient_row.html" with f=formset.empty_form %}
+    </template>
+
+    <div class="d-flex gap-2">
+      <button class="btn btn-primary" type="submit">{% trans "Save" %}</button>
+      <a class="btn btn-outline-secondary" href="{% url 'sales:payment_method_list' %}">{% trans "Cancel" %}</a>
+    </div>
+  </form>
+
+  {% if method %}
+    <div class="app-card card mt-4 border-danger-subtle">
+      <div class="card-body p-4">
+        <h2 class="rd-heading-lg mb-2 text-danger">{% trans "Danger zone" %}</h2>
+        <p class="rd-text-muted mb-3">
+          {% trans "Deleting a payment method is permanent. If existing sales or customer payments still reference it, the delete will be blocked — mark it inactive instead." %}
+        </p>
+        <form
+          method="post"
+          action="{% url 'sales:payment_method_delete' method.pk %}"
+          class="m-0"
+          onsubmit="return confirm('{% blocktrans with name=method.name|escapejs %}Delete payment method “{{ name }}”? This cannot be undone.{% endblocktrans %}');"
+        >
+          {% csrf_token %}
+          <button type="submit" class="btn btn-outline-danger">{% trans "Delete payment method" %}</button>
+        </form>
+      </div>
+    </div>
+  {% endif %}
+</div>
+
+<script>
+(function () {
+  var addBtn = document.getElementById("recipient-add");
+  var tpl = document.getElementById("recipient-empty-form");
+  var rows = document.getElementById("recipient-rows");
+  var total = document.getElementById("id_recipients-TOTAL_FORMS");
+  if (!addBtn || !tpl || !rows || !total) return;
+  addBtn.addEventListener("click", function () {
+    var index = parseInt(total.value, 10) || 0;
+    rows.insertAdjacentHTML("beforeend", tpl.innerHTML.replace(/__prefix__/g, String(index)));
+    total.value = String(index + 1);
+    var input = rows.lastElementChild && rows.lastElementChild.querySelector('input[type="text"]');
+    if (input) input.focus();
+  });
+})();
+</script>
+{% endblock %}

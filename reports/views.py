@@ -1,0 +1,563 @@
+from django import forms
+from django.contrib import messages
+from django.db.models import Count, Q, Sum
+from django.db.models.functions import TruncDate, TruncMonth
+from django.shortcuts import redirect, render
+from django.urls import reverse
+from django.utils import timezone
+from django.utils.translation import gettext, gettext_lazy as _
+
+from accounts.permissions import management_required
+from core.csv_export import csv_response, fmt_dt
+from core.datagrid import resolve_per_page
+from core.kpi_cache import cached_kpi
+from core.pagination import paginate_request
+from reports.forms import PaymentMethodReportForm
+from reports.payment_methods import build_payment_method_report
+from sales.query_utils import (
+    EXCLUDED_AGGREGATE_STATUSES,
+    apply_management_sale_filter_data,
+    apply_sale_list_ordering,
+    confirmed_sales,
+    loss_eligible_sales,
+    paid_sales_only,
+)
+from companies.models import Company
+from expenses.models import Expense
+from sales.models import Sale
+
+
+def _local_today():
+    return timezone.localdate()
+
+
+@management_required
+def dashboard(request):
+    today = _local_today()
+    from customers.models import Customer, CustomerPaymentSubmission
+
+    # Each scalar aggregate below is wrapped in `cached_kpi`. The cache
+    # version is bumped automatically by core.signals whenever a Sale,
+    # Expense, CompanyBalanceTransaction, CustomerLedger, CustomerPayment,
+    # or CustomerPaymentSubmission row changes — see core.kpi_cache for the full
+    # rationale. Date-bucketed values include `today` in the cache key
+    # so a midnight rollover doesn't serve yesterday's number.
+    today_key = today.isoformat()
+    month_start = today.replace(day=1)
+    month_key = month_start.isoformat()
+
+    pending_count = cached_kpi(
+        "dashboard:pending_count",
+        lambda: Sale.objects.filter(
+            status=Sale.Status.PENDING, on_account=False
+        ).count(),
+    )
+    awaiting_count = cached_kpi(
+        "dashboard:awaiting_count",
+        lambda: Sale.objects.filter(status=Sale.Status.AWAITING).count(),
+    )
+    payment_submissions_awaiting_count = cached_kpi(
+        "dashboard:payment_submissions_awaiting_count",
+        lambda: CustomerPaymentSubmission.objects.filter(
+            status=CustomerPaymentSubmission.Status.AWAITING
+        ).count(),
+    )
+    customer_debt_total = cached_kpi(
+        "dashboard:customer_debt_total",
+        lambda: Customer.objects.filter(current_balance__gt=0).aggregate(
+            s=Sum("current_balance")
+        )["s"]
+        or 0,
+    )
+
+    def _today_sales():
+        return confirmed_sales(Sale.objects.all()).filter(created_at__date=today)
+
+    today_count = cached_kpi(
+        f"dashboard:today_count:{today_key}",
+        lambda: _today_sales().count(),
+    )
+    today_volume = cached_kpi(
+        f"dashboard:today_volume:{today_key}",
+        lambda: _today_sales().aggregate(s=Sum("sell_price_actual"))["s"] or 0,
+    )
+    today_profit = cached_kpi(
+        f"dashboard:today_profit:{today_key}",
+        lambda: paid_sales_only(_today_sales()).aggregate(s=Sum("profit_snapshot"))["s"]
+        or 0,
+    )
+
+    total_profit = cached_kpi(
+        "dashboard:total_profit",
+        lambda: paid_sales_only(Sale.objects.all()).aggregate(
+            s=Sum("profit_snapshot")
+        )["s"]
+        or 0,
+    )
+    total_expenses = cached_kpi(
+        "dashboard:total_expenses",
+        lambda: Expense.objects.aggregate(s=Sum("amount"))["s"] or 0,
+    )
+    net_all_time = (total_profit or 0) - (total_expenses or 0)
+
+    def _month_sales():
+        return confirmed_sales(Sale.objects.all()).filter(created_at__date__gte=month_start)
+
+    month_profit = cached_kpi(
+        f"dashboard:month_profit:{month_key}",
+        lambda: paid_sales_only(_month_sales()).aggregate(s=Sum("profit_snapshot"))["s"]
+        or 0,
+    )
+    month_expenses = cached_kpi(
+        f"dashboard:month_expenses:{month_key}",
+        lambda: Expense.objects.filter(date__gte=month_start).aggregate(s=Sum("amount"))["s"]
+        or 0,
+    )
+    net_month = (month_profit or 0) - (month_expenses or 0)
+
+    # `companies` and `recent_sales` are short queries that drive the
+    # left/right cards and the activity table. They're not cached
+    # because they return queryset rows (not scalars) and we want fresh
+    # ordering and live-icon resolution.
+    companies = Company.objects.filter(is_active=True).order_by("name")
+    recent_sales = (
+        Sale.objects.select_related(
+            "company",
+            "product",
+            "product__line",
+            "created_by",
+            "payment_method",
+            "employee_recipient",
+            "employee_recipient__user",
+            "employee_recipient__user__profile",
+        )
+        .order_by("-created_at")[:12]
+    )
+
+    # Must use the same date scope as `today_count` / `today_volume` (today only).
+    esim_sales_count = cached_kpi(
+        f"dashboard:esim_sales_count:{today_key}",
+        lambda: _today_sales().filter(is_esim=True).count(),
+    )
+    all_sales = Sale.objects.all()
+    today_loss_from_zero = cached_kpi(
+        f"dashboard:today_loss:{today_key}",
+        lambda: loss_eligible_sales(all_sales.filter(created_at__date=today)).aggregate(
+            s=Sum("loss_snapshot")
+        )["s"]
+        or 0,
+    )
+    month_loss_from_zero = cached_kpi(
+        f"dashboard:month_loss:{month_key}",
+        lambda: loss_eligible_sales(
+            all_sales.filter(created_at__date__gte=month_start)
+        ).aggregate(s=Sum("loss_snapshot"))["s"]
+        or 0,
+    )
+    total_loss_from_zero = cached_kpi(
+        "dashboard:total_loss",
+        lambda: loss_eligible_sales(all_sales).aggregate(s=Sum("loss_snapshot"))["s"]
+        or 0,
+    )
+    # 14-day sales sparkline + top-5 companies bar chart for the new
+    # mini-charts row on the dashboard. Both queries are cheap (a single
+    # GROUP BY on the indexed created_at) and cached for the day so a
+    # busy dashboard doesn't hit them on every refresh.
+    chart_window_days = 14
+
+    def _daily_series():
+        from datetime import timedelta
+
+        start = today - timedelta(days=chart_window_days - 1)
+        rows = (
+            confirmed_sales(Sale.objects.all())
+            .filter(created_at__date__gte=start)
+            .annotate(d=TruncDate("created_at"))
+            .values("d")
+            .annotate(volume=Sum("sell_price_actual"), cnt=Count("id"))
+            .order_by("d")
+        )
+        # One-letter weekday labels (Sat→س … Fri→ج), common in Arabic UIs.
+        _ar_day_letter = {0: "ن", 1: "ث", 2: "ر", 3: "خ", 4: "ج", 5: "س", 6: "ح"}
+
+        bucket = {r["d"]: (float(r["volume"] or 0), int(r["cnt"] or 0)) for r in rows}
+        out = []
+        for i in range(chart_window_days):
+            day = start + timedelta(days=i)
+            v, c = bucket.get(day, (0.0, 0))
+            out.append(
+                {
+                    "date": day.isoformat(),
+                    "weekday": day,
+                    "day_letter": _ar_day_letter[day.weekday()],
+                    "volume": v,
+                    "count": c,
+                }
+            )
+        return out
+
+    def _top_companies():
+        rows = (
+            paid_sales_only(_month_sales())
+            .values("company__name")
+            .annotate(profit=Sum("profit_snapshot"), volume=Sum("sell_price_actual"))
+            .order_by("-profit")[:5]
+        )
+        return [
+            {
+                "name": r["company__name"] or "—",
+                "profit": float(r["profit"] or 0),
+                "volume": float(r["volume"] or 0),
+            }
+            for r in rows
+        ]
+
+    daily_series = cached_kpi(
+        f"dashboard:daily_series_v3:{today_key}", _daily_series
+    )
+    top_companies = cached_kpi(
+        f"dashboard:top_companies:{month_key}", _top_companies
+    )
+
+    chart_max_volume = max((d["volume"] for d in daily_series), default=0) or 1
+    chart_max_company_profit = max((c["profit"] for c in top_companies), default=0) or 1
+    chart_total_volume = sum(d["volume"] for d in daily_series)
+    chart_avg_volume = (
+        chart_total_volume / chart_window_days if chart_window_days else 0
+    )
+
+    return render(
+        request,
+        "reports/dashboard.html",
+        {
+            "title": _("Dashboard"),
+            "pending_count": pending_count,
+            "awaiting_count": awaiting_count,
+            "payment_submissions_awaiting_count": payment_submissions_awaiting_count,
+            "customer_debt_total": customer_debt_total,
+            "esim_sales_count": esim_sales_count,
+            "today_loss_from_zero": today_loss_from_zero,
+            "month_loss_from_zero": month_loss_from_zero,
+            "total_loss_from_zero": total_loss_from_zero,
+            "today_count": today_count,
+            "today_volume": today_volume,
+            "today_profit": today_profit,
+            "total_profit": total_profit,
+            "total_expenses": total_expenses,
+            "net_all_time": net_all_time,
+            "month_profit": month_profit,
+            "month_expenses": month_expenses or 0,
+            "net_month": net_month,
+            "companies": companies,
+            "recent_sales": recent_sales,
+            "daily_series": daily_series,
+            "top_companies": top_companies,
+            "chart_max_volume": chart_max_volume,
+            "chart_max_company_profit": chart_max_company_profit,
+            "chart_window_days": chart_window_days,
+            "chart_total_volume": chart_total_volume,
+            "chart_avg_volume": chart_avg_volume,
+        },
+    )
+
+
+class DateRangeForm(forms.Form):
+    date_from = forms.DateField(
+        required=False,
+        label=_("Date from"),
+        widget=forms.DateInput(attrs={"class": "form-control", "type": "date"}),
+    )
+    date_to = forms.DateField(
+        required=False,
+        label=_("Date to"),
+        widget=forms.DateInput(attrs={"class": "form-control", "type": "date"}),
+    )
+
+
+@management_required
+def profit_report(request):
+    form = DateRangeForm(request.GET or None)
+    qs = confirmed_sales(Sale.objects.all())
+    if form.is_valid():
+        if form.cleaned_data.get("date_from"):
+            qs = qs.filter(created_at__date__gte=form.cleaned_data["date_from"])
+        if form.cleaned_data.get("date_to"):
+            qs = qs.filter(created_at__date__lte=form.cleaned_data["date_to"])
+    qs_paid = paid_sales_only(qs)
+    total_profit = qs_paid.aggregate(s=Sum("profit_snapshot"))["s"] or 0
+    by_company = (
+        qs_paid.values("company__name")
+        .annotate(profit=Sum("profit_snapshot"), volume=Sum("sell_price_actual"), cnt=Count("id"))
+        .order_by("-profit")
+    )
+    by_product = (
+        qs_paid.values(
+            "company__name",
+            "product__line__name",
+            "product__variant_label",
+        )
+        .annotate(profit=Sum("profit_snapshot"), cnt=Count("id"))
+        .order_by("-profit")[:40]
+    )
+    by_employee = (
+        qs_paid.values("created_by__username")
+        .annotate(profit=Sum("profit_snapshot"), cnt=Count("id"))
+        .order_by("-profit")
+    )
+    by_method = (
+        qs_paid.values("payment_method__name")
+        .annotate(profit=Sum("profit_snapshot"), cnt=Count("id"))
+        .order_by("-profit")
+    )
+    daily = (
+        qs_paid.annotate(d=TruncDate("created_at"))
+        .values("d")
+        .annotate(profit=Sum("profit_snapshot"))
+        .order_by("d")
+    )
+    monthly = (
+        qs_paid.annotate(m=TruncMonth("created_at"))
+        .values("m")
+        .annotate(profit=Sum("profit_snapshot"))
+        .order_by("m")
+    )
+    return render(
+        request,
+        "reports/profit_report.html",
+        {
+            "form": form,
+            "title": _("Profit report"),
+            "total_profit": total_profit,
+            "by_company": by_company,
+            "by_product": by_product,
+            "by_employee": by_employee,
+            "by_method": by_method,
+            "daily": daily,
+            "monthly": monthly,
+        },
+    )
+
+
+@management_required
+def employee_report(request):
+    """Per-employee KPIs (sales count, volume, profit) within a date range.
+
+    The default window is the current month so the page always lands on
+    actionable numbers without forcing the user to fill the form first.
+    The "best company" column does a second pass per employee — N is
+    bounded by the number of staff so this stays cheap.
+    """
+    today = _local_today()
+    default_from = today.replace(day=1)
+
+    form = DateRangeForm(request.GET or None)
+    date_from = default_from
+    date_to = today
+    if form.is_valid():
+        date_from = form.cleaned_data.get("date_from") or default_from
+        date_to = form.cleaned_data.get("date_to") or today
+
+    qs = confirmed_sales(Sale.objects.all()).filter(
+        created_at__date__gte=date_from,
+        created_at__date__lte=date_to,
+    )
+    qs_paid = paid_sales_only(qs)
+
+    summary = {
+        "sales_count": qs.count(),
+        "volume": qs.aggregate(s=Sum("sell_price_actual"))["s"] or 0,
+        "profit": qs_paid.aggregate(s=Sum("profit_snapshot"))["s"] or 0,
+        "active_staff": qs.values("created_by_id").distinct().count(),
+    }
+
+    by_employee = list(
+        qs.values("created_by_id", "created_by__username", "created_by__first_name")
+        .annotate(
+            sales_count=Count("id"),
+            volume=Sum("sell_price_actual"),
+        )
+        .order_by("-volume")
+    )
+
+    profit_by_employee = {
+        row["created_by_id"]: row["profit"] or 0
+        for row in qs_paid.values("created_by_id").annotate(profit=Sum("profit_snapshot"))
+    }
+
+    top_company_by_employee = {}
+    for row in (
+        qs.values("created_by_id", "company__name")
+        .annotate(volume=Sum("sell_price_actual"))
+        .order_by("created_by_id", "-volume")
+    ):
+        emp_id = row["created_by_id"]
+        if emp_id in top_company_by_employee:
+            continue
+        top_company_by_employee[emp_id] = row["company__name"]
+
+    rows = []
+    for r in by_employee:
+        emp_id = r["created_by_id"]
+        sales_count = r["sales_count"] or 0
+        volume = r["volume"] or 0
+        profit = profit_by_employee.get(emp_id, 0)
+        rows.append(
+            {
+                "employee_id": emp_id,
+                "username": r["created_by__username"] or _("Unknown"),
+                "first_name": r["created_by__first_name"] or "",
+                "sales_count": sales_count,
+                "volume": volume,
+                "profit": profit,
+                "avg_ticket": (volume / sales_count) if sales_count else 0,
+                "top_company": top_company_by_employee.get(emp_id) or "—",
+            }
+        )
+
+    return render(
+        request,
+        "reports/employee_report.html",
+        {
+            "title": _("Employee performance"),
+            "form": form,
+            "date_from": date_from,
+            "date_to": date_to,
+            "summary": summary,
+            "rows": rows,
+        },
+    )
+
+
+@management_required
+def sales_report(request):
+    """Alias filters reusing sales list logic via redirect or duplicate — embed quick summary."""
+    from sales.forms import ManagementSaleFilterForm
+
+    form = ManagementSaleFilterForm(request.GET or None)
+    qs = Sale.objects.select_related(
+        "company",
+        "product",
+        "product__line",
+        "payment_method",
+        "created_by",
+        "employee_recipient",
+        "employee_recipient__user",
+        "employee_recipient__user__profile",
+    ).order_by("-created_at")
+    data = form.cleaned_data if form.is_valid() else {}
+    qs = apply_management_sale_filter_data(qs, data)
+    q = (request.GET.get("q") or "").strip()
+    if q:
+        qs = qs.filter(
+            Q(reference_number__icontains=q)
+            | Q(payer_name__icontains=q)
+            | Q(product__line__name__icontains=q)
+            | Q(company__name__icontains=q)
+        )
+    non_cancelled = confirmed_sales(qs)
+    summary = {
+        **non_cancelled.aggregate(volume=Sum("sell_price_actual"), cnt=Count("id")),
+        **paid_sales_only(qs).aggregate(profit=Sum("profit_snapshot")),
+    }
+    qs = apply_sale_list_ordering(request, qs)
+    page_obj = paginate_request(request, qs)
+    ctx = {
+        "form": form,
+        "page_obj": page_obj,
+        "summary": summary,
+        "title": _("Sales report"),
+        "sort": request.GET.get("sort") or "created_at",
+        "order": (request.GET.get("order") or "desc").lower(),
+    }
+    if request.headers.get("HX-Request"):
+        return render(request, "reports/partials/sales_report_results.html", ctx)
+    return render(request, "reports/sales_report.html", ctx)
+
+
+PAYMENT_METHODS_REPORT_PAGE_SIZE = 50
+
+
+def _payment_methods_csv(report):
+    headers = [
+        gettext("Date"),
+        gettext("Type"),
+        gettext("Name"),
+        gettext("Reference number"),
+        gettext("Company / product"),
+        gettext("Recipient"),
+        gettext("Employee"),
+        gettext("Amount"),
+        gettext("Status"),
+        gettext("Settled sales"),
+    ]
+    # Built eagerly: the response streams after LocaleMiddleware has finished,
+    # so translated labels must be resolved inside the request.
+    rows = [
+        (
+            fmt_dt(row.created_at),
+            gettext("Sale") if row.kind == "sale" else gettext("Settlement"),
+            row.name,
+            row.reference,
+            row.company_product,
+            row.recipient_name or gettext("No recipient"),
+            row.employee,
+            str(row.amount),
+            _payment_methods_row_status(row),
+            "; ".join(f"#{s.pk} {s.sell_price_actual}" for s in row.settled_sales),
+        )
+        for row in report.rows
+    ]
+    return csv_response("payment-methods", headers, rows)
+
+
+def _payment_methods_row_status(row):
+    if row.kind == "payment":
+        return gettext("Approved")
+    return gettext("Pending confirmation") if row.is_pending else gettext("Paid")
+
+
+@management_required
+def payment_methods_report(request):
+    """Money received on one payment method (direct sales + customer payments)."""
+    today = _local_today()
+    data = request.GET.copy()
+    if not data.get("date_from"):
+        data["date_from"] = today.replace(day=1).isoformat()
+    if not data.get("date_to"):
+        data["date_to"] = today.isoformat()
+    form = PaymentMethodReportForm(data)
+
+    report = None
+    if form.is_valid() and form.cleaned_data.get("payment_method"):
+        report = build_payment_method_report(**form.report_kwargs())
+
+    if report is not None and request.GET.get("export") == "csv":
+        return _payment_methods_csv(report)
+
+    page_obj = None
+    if report is not None:
+        per_page = (
+            resolve_per_page(request)
+            if request.GET.get("per_page")
+            else PAYMENT_METHODS_REPORT_PAGE_SIZE
+        )
+        page_obj = paginate_request(request, report.rows, per_page=per_page)
+
+    ctx = {
+        "form": form,
+        "report": report,
+        "page_obj": page_obj,
+        "title": _("Payment methods report"),
+    }
+    if request.headers.get("HX-Request"):
+        return render(request, "reports/partials/payment_methods_report_results.html", ctx)
+    return render(request, "reports/payment_methods_report.html", ctx)
+
+
+@management_required
+def company_report(request, pk):
+    """Legacy URL — redirect to the supplier detail page under Companies."""
+    url = reverse("companies:company_detail", kwargs={"pk": pk})
+    if request.GET:
+        url = f"{url}?{request.GET.urlencode()}"
+    return redirect(url)

@@ -1,0 +1,137 @@
+{% load i18n static %}
+<!DOCTYPE html>
+<html lang="{{ LANGUAGE_CODE }}" dir="{{ html_dir }}">
+<head>
+  <meta charset="utf-8">
+  {% include "partials/theme_head.html" %}
+  {% include "partials/favicon.html" %}
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ title|default:_("Management") }}{% endblock %} · {{ site_name }}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="{{ bootstrap_css }}" rel="stylesheet">
+  <link href="{% static 'css/design-system.css' %}{{ static_cache_query }}" rel="stylesheet">
+  <link href="{% static 'css/app.css' %}{{ static_cache_query }}" rel="stylesheet">
+  <script src="{% static 'vendor/htmx.min.js' %}{{ static_cache_query }}"></script>
+  <script src="{% static 'js/nav-toggle.js' %}{{ static_cache_query }}" defer></script>
+  <script src="{% static 'js/sidebar-nav.js' %}{{ static_cache_query }}" defer></script>
+  <script src="{% static 'js/theme.js' %}{{ static_cache_query }}" defer></script>
+  <script src="{% static 'js/data-ui.js' %}{{ static_cache_query }}" defer></script>
+</head>
+<body class="rd-body app-shell" data-rd-nav>
+  <div class="rd-app">
+    <div
+      class="rd-sidebar-backdrop"
+      data-rd-nav-backdrop
+      aria-hidden="true"
+    ></div>
+
+    <aside class="rd-sidebar" data-rd-nav-panel id="rd-sidebar">
+      <a class="rd-sidebar-brand{% if site_branding.logo %} rd-sidebar-brand--logo{% endif %}" href="{% url 'reports:dashboard' %}">
+        {% if site_branding.logo %}
+          <img class="rd-sidebar-brand-logo" src="{{ site_branding.logo.url }}" alt="{{ site_name }}">
+        {% else %}
+          <span class="rd-sidebar-brand-mark">{{ site_name|slice:":1" }}</span>
+          <span>
+            <div class="fw-bold lh-sm">{{ site_name }}</div>
+            <div class="rd-text-muted" style="font-size: 0.72rem;">{{ site_tagline }}</div>
+          </span>
+        {% endif %}
+      </a>
+      {% include "partials/management_nav.html" %}
+    </aside>
+
+    <div class="rd-main">
+      <header class="rd-topbar">
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            class="rd-menu-btn"
+            data-rd-nav-toggle
+            aria-controls="rd-sidebar"
+            aria-expanded="false"
+            aria-label="{% trans 'Open menu' %}"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+          </button>
+        </div>
+        <div class="rd-topbar-meta">
+          <div
+            class="rd-search"
+            data-rd-search
+            data-suggest-url="{% url 'core:search_suggest' %}"
+          >
+            <button
+              type="button"
+              class="rd-search-toggle"
+              data-rd-search-toggle
+              aria-expanded="false"
+              aria-controls="rd-search-panel"
+              aria-label="{% trans 'Search' %}"
+              title="{% trans 'Search (press /)' %}"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            </button>
+            <form
+              method="get"
+              action="{% url 'core:search' %}"
+              class="rd-search-panel"
+              id="rd-search-panel"
+              role="search"
+              data-rd-search-panel
+              hidden
+            >
+              <div class="rd-search-field">
+                <span class="rd-search-field-icon" aria-hidden="true">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                </span>
+                <label class="visually-hidden" for="rd-global-search">{% trans "Search" %}</label>
+                <input
+                  type="search"
+                  id="rd-global-search"
+                  name="q"
+                  class="rd-search-input"
+                  placeholder="{% trans 'Search reference, customer, payment…' %}"
+                  value="{{ request.GET.q|default:'' }}"
+                  autocomplete="off"
+                  aria-autocomplete="list"
+                  aria-controls="rd-search-results"
+                >
+                <kbd class="rd-search-kbd" aria-hidden="true">Esc</kbd>
+              </div>
+              <div
+                class="rd-search-results"
+                id="rd-search-results"
+                data-rd-search-results
+                role="listbox"
+                hidden
+              ></div>
+            </form>
+          </div>
+          <form action="{% url 'set_language' %}" method="post" class="d-flex align-items-center gap-1 mb-0">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ request.get_full_path }}">
+            <label class="visually-hidden" for="rd-lang-mgmt">{% trans "Language" %}</label>
+            <select name="language" id="rd-lang-mgmt" class="form-select form-select-sm rd-lang-select" onchange="this.form.submit()">
+              {% get_current_language as LANGUAGE_CODE %}
+              {% for code, label in languages %}
+                <option value="{{ code }}" {% if code == LANGUAGE_CODE %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </form>
+          {% include "partials/theme_toggle.html" with variant="shell" %}
+          <a class="btn btn-sm btn-primary" href="{% url 'sales:employee_entry' %}">{% trans "Sales entry" %}</a>
+          {% include "partials/nav_notifications.html" %}
+          {% include "partials/user_menu.html" %}
+        </div>
+      </header>
+
+      <main class="rd-content">
+        {% include "partials/messages.html" %}
+        {% block content %}{% endblock %}
+      </main>
+    </div>
+  </div>
+</body>
+</html>

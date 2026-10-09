@@ -1,0 +1,1090 @@
+{% extends "base_employee.html" %}
+{% load i18n static l10n ui_tags humanize %}
+{% block employee_header %}
+<div class="d-flex align-items-center justify-content-end gap-2 flex-wrap w-100">
+  {% if app_settings.sales_show_record_payment %}
+    <button
+      type="button"
+      id="rd-open-pay-sub-modal"
+      class="btn btn-sm btn-outline-primary rd-open-employee-modal"
+      data-bs-toggle="modal"
+      data-bs-target="#rdCustomerPaySubModal"
+    >{% trans "Record payment" %}</button>
+  {% endif %}
+</div>
+{% endblock %}
+{% block employee_main_class %} rd-employee-main--wide{% endblock %}
+{% block content %}
+<div class="rd-sale-layout">
+<div class="rd-sale-layout__primary">
+<div class="rd-sale-form">
+  <form
+    method="post"
+    class="d-flex flex-column gap-3"
+    novalidate
+    id="employee-sale-form"
+    data-esim-extra="{{ esim_extra|unlocalize }}"
+    data-msg-phone-prefix="{% trans 'صحصح رقم الشريحه اكتب' %}"
+  >
+          {% csrf_token %}
+          {% if form.non_field_errors %}
+            <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+          {% endif %}
+
+          <div class="rd-field-group">
+            <label class="rd-field-label d-block" for="id_reference_number">{% trans "Phone or shipment number" %}</label>
+            {{ form.reference_number.errors }}
+            <div class="input-group input-group-sm">
+              {{ form.reference_number }}
+              <button
+                type="button"
+                class="btn btn-outline-secondary employee-clipboard-paste-btn"
+                data-paste-target="id_reference_number"
+                aria-label="{% trans 'Paste from clipboard' %}"
+                data-paste-fail="{% trans 'Could not read clipboard. Allow paste permission or use Ctrl+V.' %}"
+              >{% trans "Paste" %}</button>
+            </div>
+          </div>
+
+          <div
+            class="rd-field-group rd-payer-field-wrap"
+            id="rd-payer-assist-root"
+            data-api-payer-by-number="{% url 'sales:api_payer_by_number' %}"
+            data-api-payer-name-suggestions="{% url 'sales:api_payer_name_suggestions' %}"
+            data-hint-prefilled="{{ _('Filled from a previous sale')|escapejs }}"
+            data-label-used="{{ _('Previously used')|escapejs }}"
+            data-label-credit-account="{{ _('Credit account')|escapejs }}"
+            data-label-cash-payer="{{ _('Cash payer')|escapejs }}"
+          >
+            <label class="rd-field-label d-block" for="id_payer_name">{% trans "Payer name" %}</label>
+            {{ form.payer_name.errors }}
+            <div class="rd-payer-ac-anchor">
+              <div class="input-group input-group-sm">
+                {{ form.payer_name }}
+                <button
+                  type="button"
+                  class="btn btn-outline-secondary employee-clipboard-paste-btn"
+                  data-paste-target="id_payer_name"
+                  aria-label="{% trans 'Paste from clipboard' %}"
+                  data-paste-fail="{% trans 'Could not read clipboard. Allow paste permission or use Ctrl+V.' %}"
+                >{% trans "Paste" %}</button>
+              </div>
+              <p class="rd-payer-prefill-hint mb-0" id="rd-payer-prefill-hint" hidden aria-live="polite"></p>
+              <div
+                class="rd-payer-ac-list"
+                id="rd-payer-ac-list"
+                role="listbox"
+                aria-label="{% trans 'Payer name suggestions' %}"
+                hidden
+              ></div>
+            </div>
+          </div>
+
+          <div class="rd-field-group" id="rd-payment-section">
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-1">
+              <div class="rd-field-label mb-0">{% trans "Where did you receive the money?" %}</div>
+              <div class="d-flex flex-wrap gap-1">
+                {% if acting_employee and app_settings.sales_show_employee_payment %}
+                <button
+                  type="button"
+                  class="btn btn-sm btn-outline-info rd-employee-payment-toggle"
+                  id="rd-employee-payment-toggle"
+                  aria-pressed="false"
+                  data-on-label="{% trans 'Payment to employee: ON' %}"
+                  data-off-label="{% trans 'Payment to employee' %}"
+                >{% trans "Payment to employee" %}</button>
+                {% endif %}
+                <button
+                  type="button"
+                  class="btn btn-sm btn-outline-warning rd-on-account-toggle"
+                  id="rd-on-account-toggle"
+                  aria-pressed="false"
+                  data-on-label="{% trans 'On account: ON' %}"
+                  data-off-label="{% trans 'Mark as on account' %}"
+                >{% trans "Mark as on account" %}</button>
+              </div>
+            </div>
+            {{ form.payment_method.errors }}
+            {{ form.payment_method }}
+            {{ form.payment_recipient.errors }}
+            {{ form.payment_recipient }}
+            {{ form.on_account }}
+            {{ form.paid_via_employee }}
+            {% if acting_employee and app_settings.sales_show_employee_payment %}
+            <div id="rd-employee-payment-hint" class="small text-info mb-0 mt-1 d-flex justify-content-between align-items-start gap-2 flex-wrap" hidden>
+              <span>
+                {% blocktrans with name=acting_employee.display_name %}Payment will be recorded to your account: {{ name }}{% endblocktrans %}
+              </span>
+              <span class="tabular-nums text-nowrap {% if acting_employee.current_balance < 0 %}kpi-expense{% elif acting_employee.current_balance > 0 %}text-success{% endif %}">
+                {% trans "Your balance:" %} {{ acting_employee.current_balance|intcomma }}
+              </span>
+            </div>
+            {% endif %}
+            <div class="row row-cols-5 g-1 mt-1 justify-content-center" id="payment-tiles">
+              {% for pm in payment_methods %}
+                <div class="col">
+                  <button
+                    type="button"
+                    class="btn btn-sm btn-outline-secondary w-100 py-2 px-1 rounded-2 employee-chip employee-payment-tile d-flex flex-column align-items-center justify-content-center {% if selected_payment_id == pm.pk|stringformat:'s' %}is-active{% endif %}"
+                    data-payment-id="{{ pm.pk }}"
+                    data-recipients="{{ pm.recipients_json }}"
+                    title="{{ pm.name|tdb }}"
+                  >{% include "sales/partials/employee_icon_mark.html" with icon=pm.icon title=pm.name|tdb %}</button>
+                </div>
+              {% empty %}
+                <div class="col-12"><p class="text-secondary small mb-0">{% trans "No payment methods." %}</p></div>
+              {% endfor %}
+            </div>
+            <div id="payment-recipient-picker" class="rd-recipient-picker{% if form.payment_recipient.errors %} is-invalid{% endif %}" data-hidden-input="id_payment_recipient" hidden>
+              <span class="rd-recipient-picker__label" id="payment-recipient-picker-label">{% trans "Received by" %}</span>
+              <div class="rd-recipient-picker__options" role="radiogroup" aria-labelledby="payment-recipient-picker-label"></div>
+            </div>
+          </div>
+
+          <div class="rd-field-group">
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+              <div class="rd-field-label mb-0">{% trans "Company" %}</div>
+              <span id="product-tiles-loading" class="htmx-indicator spinner-border spinner-border-sm text-primary" role="status" aria-hidden="true"></span>
+            </div>
+            {{ form.company.errors }}
+            {{ form.company }}
+            <div class="row row-cols-4 g-1 mt-1 justify-content-center" id="company-tiles">
+              {% for c in companies %}
+                <div class="col">
+                  <button
+                    type="button"
+                    class="btn btn-sm btn-outline-primary w-100 py-2 px-1 rounded-2 employee-chip employee-company-tile d-flex flex-column align-items-center justify-content-center {% if selected_company_id == c.pk|stringformat:'s' %}is-active{% endif %}"
+                    data-company-id="{{ c.pk }}"
+                    hx-get="{% url 'sales:employee_product_fragment' %}?company={{ c.pk }}"
+                    hx-target="#product-tiles-container"
+                    hx-swap="innerHTML"
+                    hx-indicator="#product-tiles-loading"
+                    onclick="document.getElementById('id_company').value='{{ c.pk }}'; document.getElementById('id_product').value=''; document.querySelectorAll('.employee-company-tile').forEach(function(el){ el.classList.remove('is-active'); }); this.classList.add('is-active');"
+                    title="{{ c.name }}"
+                  >{% include "sales/partials/employee_icon_mark.html" with icon=c.icon title=c.name %}</button>
+                </div>
+              {% empty %}
+                <div class="col-12"><p class="text-secondary small mb-0">{% trans "No active companies." %}</p></div>
+              {% endfor %}
+            </div>
+          </div>
+
+          <div class="rd-field-group">
+            <div class="rd-field-label">{% trans "Product" %}</div>
+            {{ form.product.errors }}
+            {{ form.product }}
+            <div id="product-tiles-container" class="mt-1">
+              {% if product_groups %}
+                {% include "sales/partials/employee_product_tiles.html" with product_groups=product_groups selected_line_id=selected_line_id selected_product_id=selected_product_id product_errors=form.product.errors %}
+              {% else %}
+                <p class="text-secondary small mb-0">{% trans "Choose a company to see products." %}</p>
+              {% endif %}
+            </div>
+          </div>
+
+          <div class="rd-field-group">
+            <label class="rd-field-label d-block" for="id_sell_price_actual">{% trans "Selling price" %}</label>
+            {{ form.sell_price_actual.errors }}
+            {{ form.sell_price_actual }}
+            <div class="rd-esim-switch">
+              <div class="rd-esim-switch__row d-flex align-items-center flex-wrap">
+                <div class="form-check form-switch m-0 rd-esim-switch__toggle">{{ form.is_esim }}</div>
+                <label class="form-check-label mb-0 rd-esim-switch__label" for="id_is_esim">
+                  {% trans "eSIM" %}
+                  <span class="text-secondary rd-esim-switch__extra">(+{{ esim_extra|unlocalize }})</span>
+                </label>
+              </div>
+            </div>
+            {{ form.is_esim.errors }}
+          </div>
+
+          <div class="rd-field-group rd-sale-preview border rounded-2 px-3 py-2 small" id="rd-sale-preview" hidden>
+            <div class="rd-field-label mb-2">{% trans "Estimate" %}</div>
+            <div class="d-flex justify-content-between gap-2">
+              <span class="text-secondary">{% trans "Supplier cost" %}</span>
+              <span id="rd-preview-cost" class="tabular-nums fw-semibold">—</span>
+            </div>
+            <div class="d-flex justify-content-between gap-2 mt-1">
+              <span class="text-secondary">{% trans "Profit" %}</span>
+              <span id="rd-preview-profit" class="tabular-nums fw-semibold">—</span>
+            </div>
+            <p class="mb-0 mt-2 small text-info" id="rd-preview-esim-note" hidden>{% trans "eSIM: extra supplier cost is included in the estimate above." %}</p>
+            <p class="mb-0 mt-2 small text-danger" id="rd-preview-loss-note" hidden>{% trans "Selling price is 0: supplier cost will be recorded as a loss in the system." %}</p>
+          </div>
+          <details class="employee-notes-details small" {% if form.notes.errors %}open{% endif %}>
+            <summary class="employee-notes-summary text-primary">{% trans "Add note (optional)" %}</summary>
+            <div class="mt-2">
+              <label class="form-label fw-semibold small visually-hidden" for="id_notes">{% trans "Notes" %}</label>
+              {{ form.notes.errors }}
+              {{ form.notes }}
+            </div>
+          </details>
+          <div class="sticky-save">
+            <button class="btn btn-primary w-100 employee-save-sale-btn" type="submit">
+              {% trans "Save sale" %}
+            </button>
+          </div>
+        </form>
+</div>
+</div>
+
+<div class="rd-sale-layout__side mt-4 mt-lg-0">
+  <div class="d-flex align-items-center justify-content-between mb-2 px-1 gap-2">
+    <h2 class="rd-heading-lg mb-0">{% trans "Recent entries" %}</h2>
+    <a class="btn btn-sm btn-outline-primary" href="{% url 'sales:employee_recent_sales' %}">{% trans "View all" %}</a>
+  </div>
+  {% if recent_sales %}
+    <div class="rd-card overflow-hidden">
+      <div class="list-group list-group-flush rd-list-flush">
+        {% for s in recent_sales %}
+          <div class="list-group-item d-flex flex-column gap-2 py-3">
+            <div class="d-flex justify-content-between gap-3">
+            <div class="min-w-0">
+              <div class="fw-semibold text-truncate">{{ s.product.display_name }}{% include "partials/sale_esim_badge.html" with sale=s %}{% include "partials/sale_loss_badge.html" with sale=s %}{% include "partials/sale_employee_payment_badge.html" with sale=s %}</div>
+              {% if s.payer_name %}
+                <div class="rd-recent-payer text-truncate">{{ s.payer_name }}</div>
+              {% endif %}
+              <div class="small text-secondary text-truncate">
+                {{ s.reference_number }}
+                {% if s.paid_via_employee and s.employee_recipient %}
+                  · {% trans "Employee" %}: {{ s.employee_recipient.display_name }}
+                {% elif s.payment_method %}
+                  · {{ s.payment_method.name|tdb }}
+                {% elif s.on_account %}
+                  · {% trans "On account" %}
+                {% endif %}
+              </div>
+            </div>
+            <div class="text-end flex-shrink-0 small">
+              <div class="fw-semibold tabular-nums">{{ s.sell_price_actual }}</div>
+              <div class="mt-1">{% include "partials/sale_status_badge.html" with sale=s %}</div>
+            </div>
+            </div>
+            {% include "sales/partials/employee_recent_actions.html" with s=s editable_sale_ids=editable_sale_ids %}
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+  {% else %}
+    <div class="empty-state">{% trans "No recent entries yet." %}</div>
+  {% endif %}
+</div>
+</div>
+
+
+{% if app_settings.sales_show_record_payment %}
+<div
+  class="modal fade"
+  id="rdCustomerPaySubModal"
+  tabindex="-1"
+  aria-labelledby="rdCustomerPaySubModalLabel"
+  aria-hidden="true"
+  data-lookup-url="{% url 'customers:api_customer_lookup' %}"
+  data-msg-customer="{{ _('Choose a customer from the suggestions list.')|escapejs }}"
+  data-msg-payment="{{ _('Choose a payment method tile.')|escapejs }}"
+  data-msg-recipient="{{ _('Pick who received the payment.')|escapejs }}"
+>
+  <div class="modal-dialog modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h2 class="modal-title h6 mb-0" id="rdCustomerPaySubModalLabel">{% trans "Record customer payment" %}</h2>
+        <button type="button" class="btn-close" id="rd-pay-sub-close-x" data-bs-dismiss="modal" aria-label="{% trans 'Close' %}"></button>
+      </div>
+      <form method="post" action="{% url 'sales:employee_submit_customer_payment_submission' %}" id="rd-pay-sub-form" novalidate>
+        {% csrf_token %}
+        <div class="modal-body">
+          <p class="small text-secondary mb-2 rd-pay-sub-note" id="rd-pay-sub-note-method">
+            {% if app_settings.require_settlement_request_approval %}
+              {% trans "Submitted for management approval before it affects the customer balance." %}
+            {% else %}
+              {% trans "Applied immediately to the customer account." %}
+            {% endif %}
+          </p>
+          <p class="small text-secondary mb-2 rd-pay-sub-note" id="rd-pay-sub-note-employee" hidden>
+            {% trans "Applied immediately to the customer and your employee ledger." %}
+          </p>
+          <div class="mb-3 rd-pay-sub-block">
+            <label class="form-label small fw-semibold" for="rd-pay-sub-search">{% trans "Customer" %}</label>
+            <input
+              type="search"
+              class="form-control form-control-sm"
+              id="rd-pay-sub-search"
+              autocomplete="off"
+              placeholder="{% trans 'Type name or phone…' %}"
+            >
+            <div class="list-group list-group-flush small mt-1 rd-pay-sub-ac" id="rd-pay-sub-ac" hidden role="listbox"></div>
+            {{ pay_sub_form.customer }}
+            <div class="mt-2 small rd-pay-sub-balance" id="rd-pay-sub-balance-line" hidden>
+              <span class="text-secondary">{% trans "Current balance (owed to shop)" %}:</span>
+              <span class="fw-semibold tabular-nums" id="rd-pay-sub-balance-val">—</span>
+            </div>
+          </div>
+          <div class="mb-3 rd-pay-sub-block">
+            <label class="form-label small fw-semibold" for="id_pay_sub_amount">{{ pay_sub_form.amount.label }}</label>
+            {{ pay_sub_form.amount }}
+            {{ pay_sub_form.amount.errors }}
+          </div>
+          <div class="mb-3 rd-pay-sub-block">
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-1">
+              <div class="form-label small fw-semibold mb-0">{% trans "Payment method" %}</div>
+              {% if acting_employee and app_settings.sales_show_employee_payment %}
+              <button
+                type="button"
+                class="btn btn-sm btn-outline-info rd-pay-sub-employee-toggle"
+                id="rd-pay-sub-employee-toggle"
+                aria-pressed="false"
+                data-on-label="{% trans 'Payment to employee: ON' %}"
+                data-off-label="{% trans 'Payment to employee' %}"
+              >{% trans "Payment to employee" %}</button>
+              {% endif %}
+            </div>
+            {{ pay_sub_form.payment_method }}
+            {{ pay_sub_form.payment_recipient }}
+            {{ pay_sub_form.paid_via_employee }}
+            {{ pay_sub_form.payment_method.errors }}
+            {% if acting_employee and app_settings.sales_show_employee_payment %}
+            <div id="rd-pay-sub-employee-hint" class="small text-info mb-0 mt-1 d-flex justify-content-between align-items-start gap-2 flex-wrap" hidden>
+              <span>
+                {% blocktrans with name=acting_employee.display_name %}Payment will be recorded to your account: {{ name }}{% endblocktrans %}
+              </span>
+              <span class="tabular-nums text-nowrap {% if acting_employee.current_balance < 0 %}kpi-expense{% elif acting_employee.current_balance > 0 %}text-success{% endif %}">
+                {% trans "Your balance:" %} {{ acting_employee.current_balance|intcomma }}
+              </span>
+            </div>
+            {% endif %}
+            <div class="row row-cols-5 g-1 mt-1 justify-content-center" id="rd-pay-sub-payment-tiles">
+              {% for pm in payment_methods %}
+                <div class="col">
+                  <button
+                    type="button"
+                    class="btn btn-sm btn-outline-secondary w-100 py-2 px-1 rounded-2 employee-chip rd-pay-sub-pm-tile d-flex flex-column align-items-center justify-content-center"
+                    data-payment-id="{{ pm.pk }}"
+                    data-recipients="{{ pm.recipients_json }}"
+                    title="{{ pm.name|tdb }}"
+                  >{% include "sales/partials/employee_icon_mark.html" with icon=pm.icon title=pm.name|tdb %}</button>
+                </div>
+              {% empty %}
+                <div class="col-12"><p class="text-secondary small mb-0">{% trans "No payment methods." %}</p></div>
+              {% endfor %}
+            </div>
+            <div id="rd-pay-sub-recipient-picker" class="rd-recipient-picker" data-hidden-input="id_pay_sub_payment_recipient" hidden>
+              <span class="rd-recipient-picker__label" id="rd-pay-sub-recipient-picker-label">{% trans "Received by" %}</span>
+              <div class="rd-recipient-picker__options" role="radiogroup" aria-labelledby="rd-pay-sub-recipient-picker-label"></div>
+            </div>
+          </div>
+          <div class="mb-0 rd-pay-sub-block rd-pay-sub-notes-wrap">
+            <details
+              class="employee-notes-details small"
+              id="rd-pay-sub-notes-details"
+              {% if pay_sub_form.notes.errors %}open{% endif %}
+            >
+              <summary class="employee-notes-summary text-primary">{% trans "Add note (optional)" %}</summary>
+              <div class="mt-2">
+                <label class="form-label fw-semibold small visually-hidden" for="id_pay_sub_notes">{% trans "Notes" %}</label>
+                {{ pay_sub_form.notes.errors }}
+                {{ pay_sub_form.notes }}
+              </div>
+            </details>
+          </div>
+        </div>
+        <div class="modal-footer py-2">
+          <button type="button" class="btn btn-outline-secondary btn-sm" id="rd-pay-sub-cancel" data-bs-dismiss="modal">{% trans "Cancel" %}</button>
+          <button type="submit" class="btn btn-primary btn-sm" id="rd-pay-sub-submit">{% trans "Submit" %}</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<script>
+function setRecipientChecked(chip, checked) {
+  chip.classList.toggle("is-active", checked);
+  chip.setAttribute("aria-checked", checked ? "true" : "false");
+}
+
+function clearRecipientPicker(picker, hidden) {
+  if (hidden) hidden.value = "";
+  if (!picker) return;
+  var options = picker.querySelector(".rd-recipient-picker__options");
+  if (options) options.innerHTML = "";
+  picker.classList.remove("is-invalid");
+  picker.hidden = true;
+}
+
+function renderRecipientPicker(tile, picker, hidden) {
+  var options = picker && picker.querySelector(".rd-recipient-picker__options");
+  if (!picker || !hidden || !options) return;
+  var list = [];
+  try {
+    list = JSON.parse((tile && tile.getAttribute("data-recipients")) || "[]") || [];
+  } catch (err) {
+    list = [];
+  }
+  options.innerHTML = "";
+  if (!list.length) {
+    clearRecipientPicker(picker, hidden);
+    return;
+  }
+  picker.hidden = false;
+  if (list.length === 1) {
+    hidden.value = String(list[0].id);
+    picker.classList.remove("is-invalid");
+    options.removeAttribute("role");
+    var only = document.createElement("span");
+    only.className = "btn btn-sm rounded-2 employee-chip rd-recipient-chip is-active is-static";
+    only.textContent = list[0].name;
+    options.appendChild(only);
+    return;
+  }
+  options.setAttribute("role", "radiogroup");
+  var current = hidden.value;
+  var hasCurrent = list.some(function (r) { return String(r.id) === current; });
+  if (!hasCurrent) hidden.value = "";
+  list.forEach(function (r, i) {
+    var id = String(r.id);
+    var checked = hasCurrent && id === current;
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "btn btn-sm btn-outline-secondary rounded-2 employee-chip rd-recipient-chip";
+    btn.setAttribute("role", "radio");
+    btn.setAttribute("data-recipient-id", id);
+    btn.tabIndex = checked || (!hasCurrent && i === 0) ? 0 : -1;
+    btn.textContent = r.name;
+    setRecipientChecked(btn, checked);
+    options.appendChild(btn);
+  });
+}
+
+function selectRecipient(chip) {
+  var picker = chip.closest(".rd-recipient-picker");
+  var hidden = picker && document.getElementById(picker.getAttribute("data-hidden-input") || "");
+  if (!picker || !hidden) return;
+  picker.querySelectorAll('.rd-recipient-chip[role="radio"]').forEach(function (c) {
+    setRecipientChecked(c, c === chip);
+    c.tabIndex = c === chip ? 0 : -1;
+  });
+  hidden.value = chip.getAttribute("data-recipient-id") || "";
+  picker.classList.remove("is-invalid");
+}
+
+function onRecipientKeydown(e) {
+  var chip = e.target.closest('.rd-recipient-chip[role="radio"]');
+  if (!chip) return;
+  var rtl = getComputedStyle(chip).direction === "rtl";
+  var step = 0;
+  if (e.key === "ArrowDown") step = 1;
+  else if (e.key === "ArrowUp") step = -1;
+  else if (e.key === "ArrowRight") step = rtl ? -1 : 1;
+  else if (e.key === "ArrowLeft") step = rtl ? 1 : -1;
+  if (!step) return;
+  e.preventDefault();
+  var chips = Array.prototype.slice.call(
+    chip.parentNode.querySelectorAll('.rd-recipient-chip[role="radio"]')
+  );
+  var next = chips[(chips.indexOf(chip) + step + chips.length) % chips.length];
+  selectRecipient(next);
+  next.focus();
+}
+
+(function () {
+  var modal = document.getElementById("rdCustomerPaySubModal");
+  if (modal) {
+    var lookupUrl = modal.getAttribute("data-lookup-url") || "";
+    var searchInp = document.getElementById("rd-pay-sub-search");
+    var acBox = document.getElementById("rd-pay-sub-ac");
+    var custHid = document.getElementById("id_pay_sub_customer");
+    var balLine = document.getElementById("rd-pay-sub-balance-line");
+    var balVal = document.getElementById("rd-pay-sub-balance-val");
+    var pmHid = document.getElementById("id_pay_sub_payment_method");
+    var recipientPicker = document.getElementById("rd-pay-sub-recipient-picker");
+    var recipientHid = document.getElementById("id_pay_sub_payment_recipient");
+    var empPayHid = document.getElementById("id_pay_sub_paid_via_employee");
+    var empPayBtn = document.getElementById("rd-pay-sub-employee-toggle");
+    var empPayHint = document.getElementById("rd-pay-sub-employee-hint");
+    var payTiles = document.getElementById("rd-pay-sub-payment-tiles");
+    var payNoteMethod = document.getElementById("rd-pay-sub-note-method");
+    var payNoteEmployee = document.getElementById("rd-pay-sub-note-employee");
+    var tmr;
+    function isPaySubViaEmployee() {
+      return !!(empPayHid && empPayHid.value);
+    }
+    function syncPaySubNote(viaEmployee) {
+      if (payNoteMethod) payNoteMethod.hidden = !!viaEmployee;
+      if (payNoteEmployee) payNoteEmployee.hidden = !viaEmployee;
+    }
+    function setPaySubViaEmployee(enabled) {
+      if (!empPayHid || !empPayBtn) return;
+      if (enabled) {
+        empPayHid.value = "1";
+        empPayBtn.classList.remove("btn-outline-info");
+        empPayBtn.classList.add("btn-info");
+        empPayBtn.setAttribute("aria-pressed", "true");
+        empPayBtn.textContent = empPayBtn.getAttribute("data-on-label") || "ON";
+        if (payTiles) payTiles.classList.add("opacity-50");
+        if (pmHid) pmHid.value = "";
+        document.querySelectorAll("#rd-pay-sub-payment-tiles .rd-pay-sub-pm-tile").forEach(function (t) {
+          t.classList.remove("is-active");
+        });
+        clearRecipientPicker(recipientPicker, recipientHid);
+        if (empPayHint) empPayHint.hidden = false;
+        syncPaySubNote(true);
+      } else {
+        empPayHid.value = "";
+        empPayBtn.classList.remove("btn-info");
+        empPayBtn.classList.add("btn-outline-info");
+        empPayBtn.setAttribute("aria-pressed", "false");
+        empPayBtn.textContent = empPayBtn.getAttribute("data-off-label") || "Employee";
+        if (payTiles) payTiles.classList.remove("opacity-50");
+        if (empPayHint) empPayHint.hidden = true;
+        syncPaySubNote(false);
+      }
+    }
+    function clearCustomer() {
+      if (custHid) custHid.value = "";
+      if (balLine) balLine.hidden = true;
+      if (searchInp) searchInp.value = "";
+    }
+    function pickCustomer(id, name, balance) {
+      if (custHid) custHid.value = String(id);
+      if (searchInp) searchInp.value = name;
+      if (acBox) acBox.hidden = true;
+      if (balLine) balLine.hidden = false;
+      if (balVal) balVal.textContent = balance;
+    }
+    function renderResults(items) {
+      if (!acBox) return;
+      acBox.innerHTML = "";
+      items.forEach(function (it) {
+        var btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "list-group-item list-group-item-action py-2";
+        btn.setAttribute("role", "option");
+        btn.textContent = it.name + " · " + it.balance;
+        btn.addEventListener("click", function () {
+          pickCustomer(it.id, it.name, it.balance);
+        });
+        acBox.appendChild(btn);
+      });
+      acBox.hidden = items.length === 0;
+    }
+    function runLookup(q) {
+      if (!lookupUrl || q.length < 2) {
+        if (acBox) acBox.hidden = true;
+        return;
+      }
+      fetch(lookupUrl + "?q=" + encodeURIComponent(q), { headers: { Accept: "application/json" } })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          var rows = (data && data.results) ? data.results : [];
+          renderResults(rows);
+        })
+        .catch(function () {
+          if (acBox) acBox.hidden = true;
+        });
+    }
+    if (searchInp) {
+      searchInp.addEventListener("input", function () {
+        if (custHid && searchInp.value.trim() === "") clearCustomer();
+        window.clearTimeout(tmr);
+        tmr = window.setTimeout(function () {
+          runLookup(searchInp.value.trim());
+        }, 250);
+      });
+      searchInp.addEventListener("focus", function () {
+        runLookup(searchInp.value.trim());
+      });
+    }
+    document.querySelectorAll("#rd-pay-sub-payment-tiles .rd-pay-sub-pm-tile").forEach(function (tile) {
+      tile.addEventListener("click", function () {
+        if (isPaySubViaEmployee()) {
+          setPaySubViaEmployee(false);
+        }
+        document.querySelectorAll("#rd-pay-sub-payment-tiles .rd-pay-sub-pm-tile").forEach(function (t) {
+          t.classList.remove("is-active");
+        });
+        tile.classList.add("is-active");
+        if (pmHid) pmHid.value = tile.getAttribute("data-payment-id") || "";
+        renderRecipientPicker(tile, recipientPicker, recipientHid);
+      });
+    });
+    if (recipientPicker) {
+      recipientPicker.addEventListener("click", function (e) {
+        var chip = e.target.closest('.rd-recipient-chip[role="radio"]');
+        if (!chip) return;
+        e.preventDefault();
+        selectRecipient(chip);
+      });
+      recipientPicker.addEventListener("keydown", onRecipientKeydown);
+    }
+    if (empPayBtn) {
+      empPayBtn.addEventListener("click", function () {
+        setPaySubViaEmployee(!isPaySubViaEmployee());
+      });
+    }
+    function resetPaySubModal() {
+      clearCustomer();
+      if (acBox) {
+        acBox.innerHTML = "";
+        acBox.hidden = true;
+      }
+      document.querySelectorAll("#rd-pay-sub-payment-tiles .rd-pay-sub-pm-tile").forEach(function (t) {
+        t.classList.remove("is-active");
+      });
+      if (pmHid) pmHid.value = "";
+      var f = document.getElementById("rd-pay-sub-form");
+      if (f) f.reset();
+      clearRecipientPicker(recipientPicker, recipientHid);
+      if (custHid) custHid.value = "";
+      if (balLine) balLine.hidden = true;
+      setPaySubViaEmployee(false);
+      var notesDetails = document.getElementById("rd-pay-sub-notes-details");
+      if (notesDetails) notesDetails.removeAttribute("open");
+    }
+
+    var hasBootstrapModal = !!(window.bootstrap && window.bootstrap.Modal);
+    if (hasBootstrapModal) {
+      modal.addEventListener("hidden.bs.modal", resetPaySubModal);
+    } else {
+      var openBtn = document.getElementById("rd-open-pay-sub-modal");
+      var closeX = document.getElementById("rd-pay-sub-close-x");
+      var closeCancel = document.getElementById("rd-pay-sub-cancel");
+      var backdrop = null;
+      function closeFallbackModal() {
+        modal.classList.remove("show");
+        modal.style.display = "none";
+        modal.setAttribute("aria-hidden", "true");
+        document.body.classList.remove("modal-open");
+        if (backdrop && backdrop.parentNode) backdrop.parentNode.removeChild(backdrop);
+        backdrop = null;
+        resetPaySubModal();
+      }
+      function openFallbackModal() {
+        modal.style.display = "block";
+        modal.classList.add("show");
+        modal.setAttribute("aria-hidden", "false");
+        document.body.classList.add("modal-open");
+        backdrop = document.createElement("div");
+        backdrop.className = "modal-backdrop fade show";
+        document.body.appendChild(backdrop);
+      }
+      if (openBtn) openBtn.addEventListener("click", function (e) { e.preventDefault(); openFallbackModal(); });
+      if (closeX) closeX.addEventListener("click", function (e) { e.preventDefault(); closeFallbackModal(); });
+      if (closeCancel) closeCancel.addEventListener("click", function (e) { e.preventDefault(); closeFallbackModal(); });
+      modal.addEventListener("click", function (e) {
+        if (e.target === modal) closeFallbackModal();
+      });
+      document.addEventListener("keydown", function (e) {
+        if (e.key === "Escape" && modal.classList.contains("show")) closeFallbackModal();
+      });
+    }
+
+    var subForm = document.getElementById("rd-pay-sub-form");
+    if (subForm) {
+      subForm.addEventListener("submit", function (e) {
+        if (!custHid || !String(custHid.value || "").trim()) {
+          e.preventDefault();
+          window.alert(modal.getAttribute("data-msg-customer") || "");
+          return;
+        }
+        if (!isPaySubViaEmployee() && (!pmHid || !String(pmHid.value || "").trim())) {
+          e.preventDefault();
+          window.alert(modal.getAttribute("data-msg-payment") || "");
+          return;
+        }
+        if (
+          !isPaySubViaEmployee() &&
+          recipientPicker && !recipientPicker.hidden &&
+          recipientHid && !String(recipientHid.value || "").trim()
+        ) {
+          e.preventDefault();
+          recipientPicker.classList.add("is-invalid");
+          window.alert(modal.getAttribute("data-msg-recipient") || "");
+        }
+      });
+    }
+  }
+})();
+
+(function () {
+  function getEsimExtra() {
+    var f = document.getElementById("employee-sale-form");
+    if (!f || !f.dataset.esimExtra) return 5;
+    var v = parseFloat(String(f.dataset.esimExtra).replace(",", "."), 10);
+    return isFinite(v) ? v : 5;
+  }
+
+  function updateSalePreview() {
+    var preview = document.getElementById("rd-sale-preview");
+    var pcEl = document.getElementById("rd-preview-cost");
+    var ppEl = document.getElementById("rd-preview-profit");
+    var note = document.getElementById("rd-preview-esim-note");
+    var lossNote = document.getElementById("rd-preview-loss-note");
+    var sellInp = document.getElementById("id_sell_price_actual");
+    var esim = document.getElementById("id_is_esim");
+    if (!preview || !pcEl || !ppEl || !sellInp) return;
+    var chip = document.querySelector(".employee-package-chip.is-active");
+    if (!chip || sellInp.value === "" || sellInp.value == null) {
+      preview.hidden = true;
+      return;
+    }
+    var base = parseFloat(String(chip.getAttribute("data-product-cost") || "").replace(",", "."), 10);
+    if (!isFinite(base)) {
+      preview.hidden = true;
+      return;
+    }
+    var useEsim = esim && esim.checked;
+    var cost = base + (useEsim ? getEsimExtra() : 0);
+    var sell = parseFloat(String(sellInp.value).replace(",", "."), 10);
+    if (!isFinite(sell)) {
+      preview.hidden = true;
+      return;
+    }
+    preview.hidden = false;
+    pcEl.textContent = cost.toFixed(2);
+    var profit = sell - cost;
+    ppEl.textContent = profit.toFixed(2);
+    ppEl.classList.remove("kpi-danger", "kpi-success", "text-danger", "text-success");
+    if (profit < 0) {
+      ppEl.classList.add("kpi-danger");
+    } else {
+      ppEl.classList.add("kpi-success");
+    }
+    if (note) note.hidden = !useEsim;
+    if (lossNote) lossNote.hidden = sell !== 0;
+  }
+
+  function resetLineAndPackages() {
+    document.querySelectorAll(".employee-product-line-tile").forEach(function (el) {
+      el.classList.remove("is-active");
+    });
+    var panel = document.getElementById("employee-packages-panel");
+    if (panel) {
+      panel.classList.add("d-none");
+    }
+    document.querySelectorAll(".employee-packages-for-line").forEach(function (el) {
+      el.classList.add("d-none");
+      el.classList.remove("d-flex");
+    });
+    document.querySelectorAll(".employee-package-chip").forEach(function (c) {
+      c.classList.remove("is-active");
+    });
+  }
+
+  function showPackagesForLine(lineId) {
+    var panel = document.getElementById("employee-packages-panel");
+    if (!panel) return;
+    document.querySelectorAll(".employee-packages-for-line").forEach(function (el) {
+      el.classList.add("d-none");
+      el.classList.remove("d-flex");
+    });
+    var box = document.getElementById("packages-for-line-" + lineId);
+    if (box) {
+      box.classList.remove("d-none");
+      box.classList.add("d-flex");
+    }
+    panel.classList.remove("d-none");
+  }
+
+  function syncLineTileActive(btn) {
+    document.querySelectorAll(".employee-product-line-tile").forEach(function (el) {
+      el.classList.remove("is-active");
+    });
+    if (btn) btn.classList.add("is-active");
+  }
+
+  function syncProductFromTile(tile) {
+    if (!tile) return;
+    document.querySelectorAll(".employee-product-tile").forEach(function (t) {
+      t.classList.remove("is-active");
+    });
+    tile.classList.add("is-active");
+    var id = tile.getAttribute("data-product-id");
+    var def = tile.getAttribute("data-default-price");
+    var hid = document.getElementById("id_product");
+    var inp = document.getElementById("id_sell_price_actual");
+    if (hid) hid.value = id || "";
+    if (inp && def) inp.value = def;
+    var lineId = tile.getAttribute("data-line-id");
+    if (lineId) {
+      var lineBtn = document.querySelector('.employee-product-line-tile[data-line-id="' + lineId + '"]');
+      syncLineTileActive(lineBtn);
+      showPackagesForLine(lineId);
+    }
+    updateSalePreview();
+  }
+
+  function onLineTileClick(btn) {
+    var lineId = btn.getAttribute("data-line-id");
+    var count = parseInt(btn.getAttribute("data-variant-count") || "0", 10);
+    syncLineTileActive(btn);
+    if (count <= 1) {
+      var wrap = document.getElementById("packages-for-line-" + lineId);
+      var only = wrap && wrap.querySelector(".employee-package-chip");
+      if (only) {
+        syncProductFromTile(only);
+        return;
+      }
+    }
+    var defaultPid = (btn.getAttribute("data-default-product-id") || "").trim();
+    if (defaultPid) {
+      var wrapDef = document.getElementById("packages-for-line-" + lineId);
+      var defChip =
+        wrapDef && wrapDef.querySelector('.employee-package-chip[data-product-id="' + defaultPid + '"]');
+      if (defChip) {
+        syncProductFromTile(defChip);
+        return;
+      }
+    }
+    var hid = document.getElementById("id_product");
+    if (hid) hid.value = "";
+    var inp = document.getElementById("id_sell_price_actual");
+    if (inp) inp.value = "";
+    document.querySelectorAll(".employee-package-chip").forEach(function (c) {
+      c.classList.remove("is-active");
+    });
+    showPackagesForLine(lineId);
+    updateSalePreview();
+  }
+
+  function clearSaleRecipientPicker() {
+    clearRecipientPicker(
+      document.getElementById("payment-recipient-picker"),
+      document.getElementById("id_payment_recipient")
+    );
+  }
+
+  function isPaidViaEmployee() {
+    var el = document.getElementById("id_paid_via_employee");
+    return !!(el && el.value);
+  }
+
+  function setPaidViaEmployee(enabled) {
+    var hid = document.getElementById("id_paid_via_employee");
+    var btn = document.getElementById("rd-employee-payment-toggle");
+    var paymentTiles = document.getElementById("payment-tiles");
+    var pmHidden = document.getElementById("id_payment_method");
+    var empHint = document.getElementById("rd-employee-payment-hint");
+    if (!hid || !btn) return;
+    if (enabled) {
+      setOnAccount(false);
+      hid.value = "1";
+      btn.classList.remove("btn-outline-info");
+      btn.classList.add("btn-info");
+      btn.setAttribute("aria-pressed", "true");
+      btn.textContent = btn.getAttribute("data-on-label") || "ON";
+      if (paymentTiles) paymentTiles.classList.add("opacity-50");
+      if (pmHidden) pmHidden.value = "";
+      document.querySelectorAll(".employee-payment-tile").forEach(function (t) {
+        t.classList.remove("is-active");
+      });
+      clearSaleRecipientPicker();
+      if (empHint) empHint.hidden = false;
+    } else {
+      hid.value = "";
+      btn.classList.remove("btn-info");
+      btn.classList.add("btn-outline-info");
+      btn.setAttribute("aria-pressed", "false");
+      btn.textContent = btn.getAttribute("data-off-label") || "Employee";
+      if (paymentTiles) paymentTiles.classList.remove("opacity-50");
+      if (empHint) empHint.hidden = true;
+    }
+  }
+
+  function syncPaymentFromTile(tile) {
+    if (!tile) return;
+    if (isOnAccount()) {
+      // Selecting a real method clears the on-account toggle.
+      setOnAccount(false);
+    }
+    if (isPaidViaEmployee()) {
+      setPaidViaEmployee(false);
+    }
+    document.querySelectorAll(".employee-payment-tile").forEach(function (t) {
+      t.classList.remove("is-active");
+    });
+    tile.classList.add("is-active");
+    var hid = document.getElementById("id_payment_method");
+    if (hid) hid.value = tile.getAttribute("data-payment-id") || "";
+    renderRecipientPicker(
+      tile,
+      document.getElementById("payment-recipient-picker"),
+      document.getElementById("id_payment_recipient")
+    );
+  }
+
+  function isOnAccount() {
+    var el = document.getElementById("id_on_account");
+    return !!(el && el.value);
+  }
+
+  function setOnAccount(enabled) {
+    var hid = document.getElementById("id_on_account");
+    var btn = document.getElementById("rd-on-account-toggle");
+    var paymentTiles = document.getElementById("payment-tiles");
+    var pmHidden = document.getElementById("id_payment_method");
+    if (!hid || !btn) return;
+    if (enabled) {
+      setPaidViaEmployee(false);
+      hid.value = "1";
+      btn.classList.remove("btn-outline-warning");
+      btn.classList.add("btn-warning");
+      btn.setAttribute("aria-pressed", "true");
+      btn.textContent = btn.getAttribute("data-on-label") || "ON";
+      if (paymentTiles) paymentTiles.classList.add("opacity-50");
+      if (pmHidden) pmHidden.value = "";
+      document.querySelectorAll(".employee-payment-tile").forEach(function (t) {
+        t.classList.remove("is-active");
+      });
+      clearSaleRecipientPicker();
+    } else {
+      hid.value = "";
+      btn.classList.remove("btn-warning");
+      btn.classList.add("btn-outline-warning");
+      btn.setAttribute("aria-pressed", "false");
+      btn.textContent = btn.getAttribute("data-off-label") || "On account";
+      if (paymentTiles) paymentTiles.classList.remove("opacity-50");
+    }
+  }
+
+  document.addEventListener("click", function (e) {
+    var form = document.getElementById("employee-sale-form");
+    if (!form) return;
+    var lineBtn = e.target.closest(".employee-product-line-tile");
+    if (lineBtn && form.contains(lineBtn)) {
+      e.preventDefault();
+      onLineTileClick(lineBtn);
+      return;
+    }
+    var pkg = e.target.closest(".employee-package-chip");
+    if (pkg && form.contains(pkg)) {
+      e.preventDefault();
+      syncProductFromTile(pkg);
+      return;
+    }
+    var pay = e.target.closest(".employee-payment-tile");
+    if (pay && form.contains(pay)) {
+      e.preventDefault();
+      syncPaymentFromTile(pay);
+      return;
+    }
+    var recipientChip = e.target.closest('#payment-recipient-picker .rd-recipient-chip[role="radio"]');
+    if (recipientChip && form.contains(recipientChip)) {
+      e.preventDefault();
+      selectRecipient(recipientChip);
+      return;
+    }
+  });
+
+  document.addEventListener("DOMContentLoaded", function () {
+    var toggleBtn = document.getElementById("rd-on-account-toggle");
+    if (toggleBtn) {
+      toggleBtn.addEventListener("click", function () {
+        setOnAccount(!isOnAccount());
+      });
+      setOnAccount(isOnAccount());
+    }
+    var empPayBtn = document.getElementById("rd-employee-payment-toggle");
+    if (empPayBtn) {
+      empPayBtn.addEventListener("click", function () {
+        setPaidViaEmployee(!isPaidViaEmployee());
+      });
+      setPaidViaEmployee(isPaidViaEmployee());
+    }
+    document.querySelectorAll(".employee-clipboard-paste-btn").forEach(function (pasteBtn) {
+      var targetId = pasteBtn.getAttribute("data-paste-target");
+      if (!targetId) return;
+      pasteBtn.addEventListener("click", function () {
+        var ref = document.getElementById(targetId);
+        if (!ref) return;
+        var failMsg = pasteBtn.getAttribute("data-paste-fail") || "";
+        function applyText(text) {
+          if (text == null || text === "") return;
+          var raw = String(text).replace(/\u200e|\u200f/g, "").trim();
+          var firstLine = raw.split(/\r?\n/).map(function (l) { return l.trim(); }).filter(Boolean)[0] || raw;
+          var maxAttr = ref.getAttribute("maxlength");
+          var maxLen = maxAttr ? parseInt(maxAttr, 10) : 2000;
+          ref.value = firstLine.replace(/\s+/g, " ").slice(0, maxLen);
+          ref.dispatchEvent(new Event("input", { bubbles: true }));
+          ref.focus();
+        }
+        if (navigator.clipboard && typeof navigator.clipboard.readText === "function") {
+          navigator.clipboard.readText().then(applyText).catch(function () {
+            if (failMsg) window.alert(failMsg);
+            ref.focus();
+          });
+        } else {
+          if (failMsg) window.alert(failMsg);
+          ref.focus();
+        }
+      });
+    });
+
+    var saleForm = document.getElementById("employee-sale-form");
+    var saleRefInput = document.getElementById("id_reference_number");
+    if (saleForm && saleRefInput) {
+      saleForm.addEventListener("submit", function (e) {
+        var digits = String(saleRefInput.value || "").replace(/\D/g, "");
+        if (digits.indexOf("972") === 0) digits = "0" + digits.slice(3);
+        if (digits.length === 9 && digits.charAt(0) === "5") digits = "0" + digits;
+        if (!/^05[0-5]\d{7}$/.test(digits)) {
+          e.preventDefault();
+          window.alert(saleForm.getAttribute("data-msg-phone-prefix") || "");
+          saleRefInput.focus();
+        }
+      });
+    }
+
+    var ph = document.getElementById("id_product");
+    if (ph && ph.value) {
+      var ps = document.querySelector('.employee-package-chip[data-product-id="' + ph.value + '"]');
+      if (ps) {
+        var lid = ps.getAttribute("data-line-id");
+        var lb = document.querySelector('.employee-product-line-tile[data-line-id="' + lid + '"]');
+        syncLineTileActive(lb);
+        showPackagesForLine(lid);
+        syncProductFromTile(ps);
+      }
+    } else {
+      var firstLine = document.querySelector(".employee-product-line-tile");
+      if (firstLine && document.querySelector("#employee-packages-panel")) {
+        /* no product yet — keep packages hidden until line chosen */
+      }
+    }
+    var recipientPicker = document.getElementById("payment-recipient-picker");
+    if (recipientPicker) recipientPicker.addEventListener("keydown", onRecipientKeydown);
+    var mh = document.getElementById("id_payment_method");
+    var ms = mh && mh.value
+      ? document.querySelector('.employee-payment-tile[data-payment-id="' + mh.value + '"]')
+      : null;
+    if (ms) {
+      syncPaymentFromTile(ms);
+    } else {
+      clearSaleRecipientPicker();
+    }
+    var esimCb = document.getElementById("id_is_esim");
+    if (esimCb) {
+      esimCb.addEventListener("change", updateSalePreview);
+    }
+    var sellEl = document.getElementById("id_sell_price_actual");
+    if (sellEl) {
+      sellEl.addEventListener("input", updateSalePreview);
+      sellEl.addEventListener("change", updateSalePreview);
+    }
+    updateSalePreview();
+  });
+
+  document.body.addEventListener("htmx:afterSwap", function (evt) {
+    if (evt.detail.target && evt.detail.target.id === "product-tiles-container") {
+      resetLineAndPackages();
+      var hid = document.getElementById("id_product");
+      if (hid) hid.value = "";
+      var inp = document.getElementById("id_sell_price_actual");
+      if (inp) inp.value = "";
+      updateSalePreview();
+    }
+  });
+})();
+</script>
+<script src="{% static 'js/employee-payer-assist.js' %}{{ static_cache_query }}"></script>
+{% endblock %}

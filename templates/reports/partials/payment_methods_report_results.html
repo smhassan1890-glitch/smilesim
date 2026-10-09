@@ -1,0 +1,201 @@
+{% load i18n humanize ui_tags %}
+{% if form.errors %}
+  <div class="alert alert-danger mb-0" role="alert">
+    <ul class="mb-0 ps-3">
+      {% for error in form.non_field_errors %}<li>{{ error }}</li>{% endfor %}
+      {% for field in form %}{% for error in field.errors %}<li>{{ field.label }}: {{ error }}</li>{% endfor %}{% endfor %}
+    </ul>
+  </div>
+{% elif report is None %}
+  <div class="rd-card">
+    <div class="rd-card-body">
+      <div class="empty-state border-0 mb-0">{% trans "Choose a payment method to see the report." %}</div>
+    </div>
+  </div>
+{% else %}
+<div class="row row-cols-1 row-cols-sm-2 row-cols-xl-4 g-3 mb-3 rd-dashboard-kpi-row">
+  <div class="col d-flex">
+    <div class="rd-card rd-stat flex-fill w-100 h-100">
+      <div class="rd-card-body d-flex flex-column h-100">
+        <div class="rd-stat-icon rd-stat-icon--info" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+        </div>
+        <div class="rd-label mb-1">{% trans "Total received" %}</div>
+        <div class="rd-stat-value tabular-nums kpi-info">{{ report.total|intcomma }}</div>
+        <div class="rd-kpi-spacer flex-grow-1" aria-hidden="true"></div>
+        <div class="rd-stat-meta">
+          <span class="text-secondary">{% trans "Movements" %}</span>
+          <span class="fw-semibold tabular-nums">{{ report.count|intcomma }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col d-flex">
+    <div class="rd-card rd-stat flex-fill w-100 h-100">
+      <div class="rd-card-body d-flex flex-column h-100">
+        <div class="rd-stat-icon rd-stat-icon--success" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
+        </div>
+        <div class="rd-label mb-1">{% trans "Sales" %}</div>
+        <div class="rd-stat-value tabular-nums">{{ report.sales_total|intcomma }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col d-flex">
+    <div class="rd-card rd-stat flex-fill w-100 h-100">
+      <div class="rd-card-body d-flex flex-column h-100">
+        <div class="rd-stat-icon rd-stat-icon--muted" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M12 1v22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        </div>
+        <div class="rd-label mb-1">{% trans "Settlements" %}</div>
+        <div class="rd-stat-value tabular-nums">{{ report.settlements_total|intcomma }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col d-flex">
+    <div class="rd-card rd-stat flex-fill w-100 h-100">
+      <div class="rd-card-body d-flex flex-column h-100">
+        <div class="rd-stat-icon rd-stat-icon--warning" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+        </div>
+        <div class="rd-label mb-1">{% trans "Pending confirmation" %}</div>
+        <div class="rd-stat-value tabular-nums {% if report.pending_total %}kpi-warning{% else %}kpi-muted{% endif %}">{{ report.pending_total|intcomma }}</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if report.by_recipient %}
+<div class="rd-card overflow-hidden mb-3">
+  <div class="rd-card-header">{% trans "By recipient" %}</div>
+  <div class="rd-data-shell">
+    <div class="table-responsive rd-table-wrap border-0">
+      <table class="table table-striped table-hover mb-0 align-middle rd-activity-table">
+        <thead>
+          <tr>
+            <th scope="col">{% trans "Recipient" %}</th>
+            <th scope="col" class="text-end">{% trans "Movements" %}</th>
+            <th scope="col" class="text-end">{% trans "Amount" %}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for b in report.by_recipient %}
+            <tr>
+              <td class="fw-medium">{% if b.recipient_name %}{{ b.recipient_name }}{% else %}<span class="text-secondary">{% trans "No recipient" %}</span>{% endif %}</td>
+              <td class="tabular-nums text-end">{{ b.count|intcomma }}</td>
+              <td class="fw-semibold tabular-nums kpi-info text-end">{{ b.total|intcomma }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<div class="rd-card overflow-hidden">
+  <div class="rd-card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <span>{% trans "Movements" %} <span class="small text-secondary tabular-nums ms-1">{{ form.cleaned_data.date_from|date:"Y-m-d" }} – {{ form.cleaned_data.date_to|date:"Y-m-d" }}</span></span>
+    <a class="btn btn-outline-secondary btn-sm" href="{% querystring export='csv' page=None %}" hx-boost="false" download>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="me-1"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      {% trans "Export Excel" %}
+    </a>
+  </div>
+<div class="rd-table-dual rd-datagrid-body">
+  <div class="d-none d-md-block rd-data-shell">
+    <div class="table-responsive border-0">
+      <table class="table mb-0 align-middle rd-table-modern">
+        <thead>
+          <tr>
+            <th>{% trans "When" %}</th>
+            <th>{% trans "Type" %}</th>
+            <th>{% trans "Name" %}</th>
+            <th>{% trans "Ref" %}</th>
+            <th>{% trans "Company / product" %}</th>
+            <th>{% trans "Recipient" %}</th>
+            <th>{% trans "Employee" %}</th>
+            <th class="text-end">{% trans "Amount" %}</th>
+            <th>{% trans "Status" %}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in page_obj %}
+            <tr class="{% if row.is_pending %}rd-row-pending{% endif %}">
+              <td class="small text-secondary text-nowrap">{{ row.created_at }}</td>
+              <td><span class="rd-badge rd-badge--neutral">{% if row.kind == "sale" %}{% trans "Sale" %}{% else %}{% trans "Settlement" %}{% endif %}</span></td>
+              <td class="fw-medium">
+                {{ row.name|default:"—" }}
+                {% if row.settled_sales %}
+                  <details class="small fw-normal mt-1">
+                    <summary class="text-primary">{% trans "Show settled sales" %} ({{ row.settled_sales|length }})</summary>
+                    <ul class="list-unstyled mb-0 mt-1">
+                      {% for s in row.settled_sales %}
+                        <li class="text-secondary text-nowrap"><span class="tabular-nums">#{{ s.pk }}</span> · {{ s.company.name }} · {{ s.product.display_name }} · <span class="tabular-nums kpi-info">{{ s.sell_price_actual|intcomma }}</span></li>
+                      {% endfor %}
+                    </ul>
+                  </details>
+                {% endif %}
+              </td>
+              <td class="tabular-nums text-nowrap">{{ row.reference|default:"—" }}</td>
+              <td>{{ row.company_product|default:"—" }}</td>
+              <td>{% if row.recipient_name %}{{ row.recipient_name }}{% else %}<span class="text-secondary">{% trans "No recipient" %}</span>{% endif %}</td>
+              <td class="small text-secondary">{{ row.employee }}</td>
+              <td class="tabular-nums text-end fw-semibold kpi-info">{{ row.amount|intcomma }}</td>
+              <td>
+                {% if row.kind == "payment" %}
+                  <span class="rd-badge rd-badge--paid">{% trans "Approved" %}</span>
+                {% elif row.is_pending %}
+                  <span class="rd-badge rd-badge--pending">{% trans "Pending confirmation" %}</span>
+                {% else %}
+                  <span class="rd-badge rd-badge--paid">{% trans "Paid" %}</span>
+                {% endif %}
+              </td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="9" class="text-center py-5"><div class="empty-state border-0 mb-0">{% trans "No rows." %}</div></td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="d-md-none d-flex flex-column gap-2 p-2">
+    {% for row in page_obj %}
+      <div class="rd-mobile-row-card {% if row.is_pending %}is-pending{% endif %}">
+        <div class="d-flex justify-content-between align-items-center gap-2">
+          <span class="small text-secondary">{{ row.created_at }}</span>
+          <span class="rd-badge rd-badge--neutral">{% if row.kind == "sale" %}{% trans "Sale" %}{% else %}{% trans "Settlement" %}{% endif %}</span>
+        </div>
+        <div class="fw-semibold">{{ row.name|default:"—" }}</div>
+        {% if row.kind == "sale" %}
+          <div class="small">{{ row.company_product }} · <span class="font-monospace">{{ row.reference }}</span></div>
+        {% endif %}
+        <div class="small text-secondary">{% if row.recipient_name %}{{ row.recipient_name }}{% else %}{% trans "No recipient" %}{% endif %} · {{ row.employee }}</div>
+        <div class="d-flex justify-content-between align-items-center mt-1">
+          <span class="kpi-info fw-bold tabular-nums">{{ row.amount|intcomma }}</span>
+          {% if row.kind == "payment" %}
+            <span class="rd-badge rd-badge--paid">{% trans "Approved" %}</span>
+          {% elif row.is_pending %}
+            <span class="rd-badge rd-badge--pending">{% trans "Pending confirmation" %}</span>
+          {% else %}
+            <span class="rd-badge rd-badge--paid">{% trans "Paid" %}</span>
+          {% endif %}
+        </div>
+        {% if row.settled_sales %}
+          <details class="small mt-1">
+            <summary class="text-primary">{% trans "Show settled sales" %} ({{ row.settled_sales|length }})</summary>
+            <ul class="list-unstyled mb-0 mt-1">
+              {% for s in row.settled_sales %}
+                <li class="text-secondary"><span class="tabular-nums">#{{ s.pk }}</span> · {{ s.company.name }} · {{ s.product.display_name }} · <span class="tabular-nums kpi-info">{{ s.sell_price_actual|intcomma }}</span></li>
+              {% endfor %}
+            </ul>
+          </details>
+        {% endif %}
+      </div>
+    {% empty %}
+      <div class="empty-state">{% trans "No rows." %}</div>
+    {% endfor %}
+  </div>
+</div>
+{% include "partials/pagination.html" with page_obj=page_obj %}
+</div>
+{% endif %}

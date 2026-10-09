@@ -1,0 +1,318 @@
+{% extends "base_management.html" %}
+{% load i18n humanize %}
+{% block content %}
+<div class="rd-page-header rd-page-header--dashboard">
+  <h1 class="rd-heading-xl mb-0">{% trans "Operational snapshot" %}</h1>
+</div>
+
+{# 1) Top KPIs — pending + today row (5 columns on xl) #}
+<div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 row-cols-xl-5 g-3 mb-3 rd-dashboard-kpi-row rd-dashboard-section rd-dashboard-section--today">
+  <div class="col d-flex">
+    <div class="rd-card rd-stat flex-fill w-100 h-100">
+      <div class="rd-card-body d-flex flex-column h-100">
+        <div class="rd-stat-icon rd-stat-icon--warning" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+        </div>
+        <div class="rd-label mb-1">{% trans "Pending" %}</div>
+        <div class="rd-kpi-spacer flex-grow-1" aria-hidden="true"></div>
+        <div class="rd-stat-pair">
+          <a class="rd-stat-pair__item" href="{% url 'sales:pending_payments' %}">
+            <span class="rd-stat-pair__lbl">{% trans "Payments" %}</span>
+            <span class="rd-stat-pair__val kpi-warning">{{ pending_count|intcomma }}</span>
+          </a>
+          <span class="rd-stat-pair__divider" aria-hidden="true"></span>
+          <a class="rd-stat-pair__item" href="{% url 'sales:awaiting_approvals' %}">
+            <span class="rd-stat-pair__lbl">{% trans "Debts" %}</span>
+            <span class="rd-stat-pair__val kpi-warning">{{ awaiting_count|intcomma }}</span>
+          </a>
+          <span class="rd-stat-pair__divider" aria-hidden="true"></span>
+          <a class="rd-stat-pair__item" href="{% url 'customers:customer_payment_submissions_list' %}">
+            <span class="rd-stat-pair__lbl">{% trans "Settlements" %}</span>
+            <span class="rd-stat-pair__val kpi-warning">{{ payment_submissions_awaiting_count|intcomma }}</span>
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col d-flex">
+    <div class="rd-card rd-stat flex-fill w-100 h-100">
+      <div class="rd-card-body d-flex flex-column h-100">
+        <div class="rd-stat-icon rd-stat-icon--info" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
+        </div>
+        <div class="rd-label mb-1">{% trans "Today's sales" %}</div>
+        <div class="rd-stat-value kpi-info">{{ today_count|intcomma }}</div>
+        <div class="rd-kpi-spacer flex-grow-1" aria-hidden="true"></div>
+        <div class="rd-stat-meta">
+          <div class="d-flex flex-wrap justify-content-between align-items-baseline gap-2 column-gap-3">
+            <span class="text-nowrap"><span class="text-secondary">{% trans "Volume" %}</span> <span class="fw-semibold tabular-nums kpi-info">{{ today_volume|intcomma }}</span></span>
+            <span class="text-nowrap"><span class="text-secondary">{% trans "eSIM" %}</span> <span class="fw-semibold tabular-nums">{{ esim_sales_count|intcomma }}</span></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col d-flex">
+    <div class="rd-card rd-stat flex-fill w-100 h-100">
+      <div class="rd-card-body d-flex flex-column h-100">
+        <div class="rd-stat-icon rd-stat-icon--success" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+        </div>
+        <div class="rd-label mb-1">{% trans "Today's profit" %}</div>
+        <div class="rd-stat-value {% if today_profit < 0 %}kpi-danger{% else %}kpi-success{% endif %}">{{ today_profit|intcomma }}</div>
+        <div class="rd-kpi-spacer flex-grow-1" aria-hidden="true"></div>
+        <p class="rd-stat-footnote mb-0">{% trans "Paid sales only" %}</p>
+      </div>
+    </div>
+  </div>
+  <div class="col d-flex">
+    <a class="rd-card rd-stat flex-fill w-100 h-100 text-decoration-none" href="{% url 'customers:customer_list' %}">
+      <div class="rd-card-body d-flex flex-column h-100">
+        <div class="rd-stat-icon rd-stat-icon--danger" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/><path d="M3 5c0-1.66 4-3 9-3s9 1.34 9 3-4 3-9 3-9-1.34-9-3z"/></svg>
+        </div>
+        <div class="rd-label mb-1">{% trans "Total customer debt" %}</div>
+        <div class="rd-stat-value kpi-expense">{{ customer_debt_total|intcomma }}</div>
+        <div class="rd-kpi-spacer flex-grow-1" aria-hidden="true"></div>
+      </div>
+    </a>
+  </div>
+  <div class="col d-flex">
+    <div class="rd-card rd-stat rd-stat--loss flex-fill w-100 h-100">
+      <div class="rd-card-body d-flex flex-column h-100">
+        <div class="rd-stat-icon rd-stat-icon--danger" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 14l4 4 6-9"/></svg>
+        </div>
+        <div class="rd-label mb-1">{% trans "Loss" %}</div>
+        <div class="rd-kpi-spacer flex-grow-1" aria-hidden="true"></div>
+        <div class="rd-stat-pair">
+          <div class="rd-stat-pair__item">
+            <span class="rd-stat-pair__lbl">{% trans "Today" %}</span>
+            <span class="rd-stat-pair__val kpi-danger">{{ today_loss_from_zero|intcomma }}</span>
+          </div>
+          <span class="rd-stat-pair__divider" aria-hidden="true"></span>
+          <div class="rd-stat-pair__item">
+            <span class="rd-stat-pair__lbl">{% trans "Month" %}</span>
+            <span class="rd-stat-pair__val kpi-danger">{{ month_loss_from_zero|intcomma }}</span>
+          </div>
+          <span class="rd-stat-pair__divider" aria-hidden="true"></span>
+          <div class="rd-stat-pair__item">
+            <span class="rd-stat-pair__lbl">{% trans "All" %}</span>
+            <span class="rd-stat-pair__val kpi-danger">{{ total_loss_from_zero|intcomma }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# 2) Month (with all-time under the card) + supplier balances #}
+<div class="row g-3 mb-3 align-items-stretch rd-dashboard-financial-row rd-dashboard-section rd-dashboard-section--month">
+  <div class="col-12 col-md-6 d-flex flex-column gap-2 h-100 rd-dashboard-month-col">
+    <div class="rd-card rd-month-card flex-shrink-0 d-flex flex-column">
+      <div class="rd-card-body d-flex flex-column">
+        <div class="rd-month-card__head">
+          <span class="rd-month-card__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+          </span>
+          <div class="rd-month-card__head-text">
+            <span class="rd-label rd-month-card__title">{% trans "This month profit" %}</span>
+            <span class="rd-month-card__period">{% now "F Y" %}</span>
+          </div>
+        </div>
+
+        <div class="rd-month-card__value-wrap">
+          <div class="rd-month-card__value tabular-nums {% if month_profit < 0 %}kpi-danger{% elif month_profit > 0 %}kpi-success{% else %}kpi-muted{% endif %}">{{ month_profit|intcomma }}</div>
+        </div>
+
+        <div class="rd-month-card__split">
+          <div class="rd-month-card__cell">
+            <span class="rd-month-card__lbl">{% trans "Expenses" %}</span>
+            <span class="rd-month-card__val tabular-nums kpi-expense">{{ month_expenses|intcomma }}</span>
+          </div>
+          <span class="rd-month-card__divider" aria-hidden="true"></span>
+          <div class="rd-month-card__cell">
+            <span class="rd-month-card__lbl">{% trans "Net (month)" %}</span>
+            <span class="rd-month-card__val tabular-nums {% if net_month < 0 %}kpi-danger{% elif net_month > 0 %}kpi-success{% else %}kpi-muted{% endif %}">{{ net_month|intcomma }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="rd-dashboard-kpi-row flex-shrink-0 mt-md-auto w-100" role="region" aria-label="{% trans 'All-time totals' %}">
+      <div class="rd-card rd-stat w-100 rd-dashboard-alltime-stat">
+        <div class="rd-card-body d-flex flex-column h-100">
+          <div class="rd-stat-pair rd-stat-pair--flush-top">
+            <div class="rd-stat-pair__item">
+              <span class="rd-stat-pair__lbl">{% trans "All-time profit" %}</span>
+              <span class="rd-stat-pair__val tabular-nums {% if total_profit < 0 %}kpi-danger{% elif total_profit > 0 %}kpi-success{% else %}kpi-muted{% endif %}">{{ total_profit|intcomma }}</span>
+            </div>
+            <span class="rd-stat-pair__divider" aria-hidden="true"></span>
+            <div class="rd-stat-pair__item">
+              <span class="rd-stat-pair__lbl">{% trans "All-time expenses" %}</span>
+              <span class="rd-stat-pair__val tabular-nums kpi-expense">{{ total_expenses|intcomma }}</span>
+            </div>
+            <span class="rd-stat-pair__divider" aria-hidden="true"></span>
+            <div class="rd-stat-pair__item">
+              <span class="rd-stat-pair__lbl">{% trans "Net profit (all time)" %}</span>
+              <span class="rd-stat-pair__val tabular-nums {% if net_all_time < 0 %}kpi-danger{% elif net_all_time > 0 %}kpi-success{% else %}kpi-muted{% endif %}">{{ net_all_time|intcomma }}</span>
+            </div>
+          </div>
+          <p class="rd-stat-footnote mb-0 text-center">{% trans "Paid sales only" %}</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-md-6 d-flex h-100">
+    <div class="rd-card flex-fill d-flex flex-column overflow-hidden min-h-0 w-100">
+      <div class="rd-card-header flex-shrink-0 d-flex align-items-center justify-content-between flex-wrap gap-2">
+        <span class="d-flex align-items-center gap-2">
+          <svg class="rd-card-header-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21V8l9-5 9 5v13"/><path d="M9 21v-6h6v6"/></svg>
+          <span>{% trans "Supplier balances" %}</span>
+        </span>
+        <a class="btn btn-sm btn-outline-secondary" href="{% url 'companies:company_list' %}">{% trans "View all" %}</a>
+      </div>
+      <ul class="rd-supplier-list rd-dashboard-balance-list flex-grow-1">
+        {% for c in companies %}
+          <li>
+            <a class="rd-supplier-row" href="{% url 'companies:company_detail' c.pk %}">
+              <span class="rd-supplier-avatar" aria-hidden="true">{{ c.name|slice:":1"|upper }}</span>
+              <span class="rd-supplier-info">
+                <span class="rd-supplier-name">{{ c.name }}</span>
+                <span class="rd-supplier-meta {% if c.current_balance < 0 %}is-danger{% elif c.current_balance == 0 %}is-warning{% else %}is-success{% endif %}">
+                  <span class="rd-supplier-dot" aria-hidden="true"></span>
+                  {% if c.current_balance < 0 %}{% trans "Overdrawn" %}{% elif c.current_balance == 0 %}{% trans "Empty" %}{% else %}{% trans "Available" %}{% endif %}
+                </span>
+              </span>
+              <span class="rd-supplier-amount tabular-nums fw-bold {% if c.current_balance < 0 %}kpi-danger{% elif c.current_balance == 0 %}kpi-warning{% else %}kpi-success{% endif %}">{{ c.current_balance|intcomma }}</span>
+              <svg class="rd-supplier-chevron" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
+            </a>
+          </li>
+        {% empty %}
+          <li class="rd-supplier-empty">{% trans "No companies yet." %}</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+</div>
+
+{# 3) Charts #}
+<div class="row g-3 mb-3 align-items-stretch rd-dashboard-charts-row rd-dashboard-section rd-dashboard-section--charts">
+  <div class="col-lg-7 d-flex">
+    <div class="rd-card flex-fill d-flex flex-column">
+      <div class="rd-card-header d-flex flex-column flex-lg-row align-items-lg-center justify-content-lg-between gap-2">
+        <div class="rd-mini-chart-header-text">
+          <span class="rd-mini-chart-title">{% blocktrans count n=chart_window_days %}Sales last {{ n }} day{% plural %}Sales last {{ n }} days{% endblocktrans %}</span>
+          <span class="rd-mini-chart-summary">
+            <span class="rd-mini-chart-summary__item"><span class="rd-mini-chart-summary__lbl">{% trans "Total volume" %}</span> <span class="tabular-nums">{{ chart_total_volume|floatformat:0|intcomma }}</span></span>
+            <span class="rd-mini-chart-summary__sep" aria-hidden="true">·</span>
+            <span class="rd-mini-chart-summary__item"><span class="rd-mini-chart-summary__lbl">{% trans "Avg per day" %}</span> <span class="tabular-nums">{{ chart_avg_volume|floatformat:0|intcomma }}</span></span>
+          </span>
+        </div>
+        <a class="btn btn-sm btn-outline-secondary align-self-lg-end" href="{% url 'reports:profit_report' %}">{% trans "Open profit report" %}</a>
+      </div>
+      <div class="rd-card-body">
+        {% if daily_series %}
+          <div class="rd-mini-chart" role="img" aria-label="{% trans 'Daily sales volume' %}">
+            <div class="rd-mini-chart-grid" aria-hidden="true">
+              <span></span><span></span><span></span><span></span>
+            </div>
+            <div class="rd-mini-chart-bars">
+              {% for d in daily_series %}
+                {% widthratio d.volume chart_max_volume 100 as bar_pct %}
+                <div class="rd-mini-chart-bar-cell {% if forloop.last %}is-today{% endif %} {% if not d.volume %}is-empty{% endif %}">
+                  <span class="rd-mini-chart-tip" role="tooltip">
+                    <span class="rd-mini-chart-tip__date">{{ d.date }}</span>
+                    <span class="rd-mini-chart-tip__val tabular-nums">{{ d.volume|floatformat:0|intcomma }}</span>
+                  </span>
+                  <div class="rd-mini-chart-bar" style="height: {% if d.volume %}{{ bar_pct }}%{% else %}3px{% endif %};"></div>
+                </div>
+              {% endfor %}
+            </div>
+            <div class="rd-mini-chart-weekdays" aria-hidden="true">
+              {% for d in daily_series %}
+                <span class="rd-mini-chart-wd" title="{{ d.date }}">{{ d.day_letter }}</span>
+              {% endfor %}
+            </div>
+            <div class="rd-mini-chart-axis">
+              <span>{{ daily_series.0.date }}</span>
+              <span>{% trans "Today" %}</span>
+            </div>
+          </div>
+        {% else %}
+          <div class="rd-text-muted small">{% trans "No sales recorded in this period." %}</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-5 d-flex">
+    <div class="rd-card flex-fill d-flex flex-column">
+      <div class="rd-card-header d-flex align-items-center gap-2">
+        <svg class="rd-card-header-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9H4.5a2.5 2.5 0 010-5H6"/><path d="M18 9h1.5a2.5 2.5 0 000-5H18"/><path d="M6 4h12v6a6 6 0 01-12 0V4z"/><path d="M9 22h6"/><path d="M12 17v5"/></svg>
+        <span>{% trans "Top companies (this month, by profit)" %}</span>
+      </div>
+      <div class="rd-card-body">
+        {% if top_companies %}
+          <ul class="rd-top-list mb-0">
+            {% for c in top_companies %}
+              {% widthratio c.profit chart_max_company_profit 100 as cbar %}
+              <li class="rd-top-item rd-top-item--rank-{{ forloop.counter }}">
+                <span class="rd-top-rank" aria-hidden="true">{{ forloop.counter }}</span>
+                <span class="rd-top-avatar" aria-hidden="true">{{ c.name|slice:":1"|upper }}</span>
+                <div class="rd-top-body">
+                  <div class="rd-top-row">
+                    <span class="rd-top-name">{{ c.name }}</span>
+                    <span class="rd-top-profit tabular-nums">{{ c.profit|floatformat:0|intcomma }}</span>
+                  </div>
+                  <div class="rd-top-list-track">
+                    <div class="rd-top-list-fill" style="width: {{ cbar }}%;"></div>
+                  </div>
+                </div>
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <div class="rd-text-muted small">{% trans "No paid sales this month yet." %}</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+{# 4) Recent activity #}
+<div class="rd-card overflow-hidden rd-dashboard-section rd-dashboard-section--activity">
+  <div class="rd-card-header d-flex align-items-center justify-content-between flex-wrap gap-2">
+    <span>{% trans "Recent activity" %}</span>
+    <a class="btn btn-sm btn-outline-primary" href="{% url 'sales:management_sale_list' %}">{% trans "View all sales" %}</a>
+  </div>
+  <div class="rd-data-shell">
+    <div class="table-responsive rd-table-wrap border-0">
+      <table class="table table-striped table-hover mb-0 align-middle rd-activity-table">
+        <thead>
+          <tr>
+            <th scope="col">{% trans "When" %}</th>
+            <th scope="col">{% trans "Company" %}</th>
+            <th scope="col">{% trans "Product" %}</th>
+            <th scope="col">{% trans "Employee" %}</th>
+            <th scope="col" class="text-end">{% trans "Amount" %}</th>
+            <th scope="col">{% trans "Status" %}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for s in recent_sales %}
+            <tr class="{% if s.status == 'pending' %}rd-row-pending{% endif %}">
+              <td class="text-secondary small text-nowrap">{{ s.created_at }}</td>
+              <td class="fw-medium">{{ s.company.name }}</td>
+              <td>{{ s.product.display_name }}{% include "partials/sale_esim_badge.html" with sale=s %}{% include "partials/sale_loss_badge.html" with sale=s %}{% include "partials/sale_employee_payment_badge.html" with sale=s %}</td>
+              <td class="text-secondary small">{{ s.created_by.username }}</td>
+              <td class="fw-semibold tabular-nums text-end kpi-info">{{ s.sell_price_actual|intcomma }}</td>
+              <td>{% include "partials/sale_status_badge.html" with sale=s %}</td>
+            </tr>
+          {% empty %}
+            <tr class="rd-activity-empty"><td colspan="6">{% trans "No sales yet." %}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

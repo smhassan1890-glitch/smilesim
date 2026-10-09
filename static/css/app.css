@@ -1,0 +1,1237 @@
+/**
+ * App-specific layers — load after design-system.css
+ * (Employee sale chips, legacy list hovers, table helpers.)
+ */
+
+.btn-lg-touch {
+  padding: 0.85rem 1rem;
+  font-size: 1.05rem;
+  border-radius: var(--rd-radius-sm, 10px);
+}
+
+.sticky-save .employee-save-sale-btn {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.employee-save-sale-btn {
+  white-space: normal;
+}
+
+.employee-notes-details {
+  border: 0;
+}
+
+.employee-notes-summary {
+  cursor: pointer;
+  list-style: none;
+  font-weight: 500;
+  user-select: none;
+}
+
+.employee-notes-summary::-webkit-details-marker {
+  display: none;
+}
+
+.employee-notes-details[open] .employee-notes-summary {
+  margin-bottom: 0.15rem;
+}
+
+.employee-notes-summary::before {
+  content: "+";
+  display: inline-block;
+  width: 1.05em;
+  text-align: center;
+  font-weight: 600;
+  margin-inline-end: 0.28em;
+  opacity: 0.88;
+  font-size: 1.05em;
+  line-height: 1;
+  vertical-align: -0.05em;
+}
+
+.employee-notes-details[open] .employee-notes-summary::before {
+  content: "\2212";
+}
+
+.htmx-request .htmx-indicator {
+  opacity: 1 !important;
+}
+
+.htmx-indicator {
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.badge-soft {
+  font-weight: 600;
+  padding: 0.35rem 0.55rem;
+  border-radius: 999px;
+}
+
+.app-shell .list-group-item-action {
+  border-color: var(--bs-border-color);
+}
+
+[data-bs-theme="light"] .app-shell .list-group-item-action:hover,
+[data-bs-theme="light"] .app-shell .list-group-item-action:focus {
+  background-color: rgba(59, 130, 246, 0.08);
+  color: var(--bs-body-color);
+}
+
+[data-bs-theme="dark"] .app-shell .list-group-item-action:hover,
+[data-bs-theme="dark"] .app-shell .list-group-item-action:focus {
+  background-color: rgba(59, 130, 246, 0.12);
+  color: var(--bs-body-color);
+}
+
+[data-bs-theme="dark"] .table-light {
+  --bs-table-bg: rgba(255, 255, 255, 0.06);
+  --bs-table-color: var(--bs-body-color);
+  border-color: var(--bs-border-color);
+}
+
+[data-bs-theme="dark"] .badge.text-bg-light {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+  color: var(--bs-body-color) !important;
+  border-color: var(--bs-border-color) !important;
+}
+
+/* Employee sale entry — compact chips (company / product / payment) */
+.employee-chip {
+  font-size: 0.78rem;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
+.employee-company-tile,
+.employee-payment-tile,
+.employee-product-tile,
+.employee-product-line-tile {
+  white-space: normal;
+}
+
+/* Minimal tiles (test): no chip frame — only logo / price line */
+.employee-company-tile,
+.employee-product-tile:not(.employee-package-chip),
+.employee-payment-tile,
+.employee-product-line-tile {
+  border: none !important;
+  box-shadow: none !important;
+  background-color: transparent !important;
+  --bs-btn-bg: transparent;
+  --bs-btn-border-color: transparent;
+  --bs-btn-color: inherit;
+  --bs-btn-hover-bg: transparent;
+  --bs-btn-hover-border-color: transparent;
+  --bs-btn-hover-color: inherit;
+  --bs-btn-active-bg: transparent;
+  --bs-btn-active-border-color: transparent;
+  --bs-btn-active-color: inherit;
+}
+
+.employee-company-tile:hover,
+.employee-product-tile:not(.employee-package-chip):hover,
+.employee-payment-tile:hover,
+.employee-product-line-tile:hover {
+  background-color: transparent !important;
+  border-color: transparent !important;
+}
+
+.employee-chip-meta {
+  font-size: 0.68rem;
+  display: block;
+}
+
+/* Company: selected بدون إطار (اللوجو فقط) */
+.employee-company-tile.is-active,
+.employee-company-tile:active {
+  outline: none !important;
+  box-shadow: none !important;
+  background-color: transparent !important;
+  border: none !important;
+}
+
+/* خط المنتج (صورة/أيقونة الخط): نفس منطق التحديد الواضح كالباقات */
+.employee-product-line-tile.is-active {
+  outline: none !important;
+  border: 2px solid var(--bs-primary) !important;
+  border-radius: 0.375rem;
+  background-color: rgba(var(--bs-primary-rgb), 0.14) !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(var(--bs-primary-rgb), 0.2),
+    0 0 0 2px rgba(var(--bs-primary-rgb), 0.18);
+}
+
+.employee-product-line-tile.is-active:active {
+  border-color: var(--bs-primary) !important;
+  background-color: rgba(var(--bs-primary-rgb), 0.16) !important;
+}
+
+.employee-product-line-tile:focus-visible {
+  outline: 2px solid var(--bs-primary);
+  outline-offset: 2px;
+}
+
+/* Package chip & payment: تحديد يشبه حقل النموذج */
+.employee-package-chip.employee-product-tile.is-active,
+.employee-package-chip.is-active,
+.employee-package-chip.employee-product-tile:active,
+.employee-payment-tile.is-active,
+.employee-payment-tile:active {
+  outline: none !important;
+  border: 2px solid var(--bs-primary) !important;
+  border-radius: 0.375rem;
+  background-color: rgba(var(--bs-primary-rgb), 0.18) !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(var(--bs-primary-rgb), 0.22),
+    0 0 0 2px rgba(var(--bs-primary-rgb), 0.2);
+  color: inherit !important;
+  font-weight: 600;
+}
+
+.employee-payment-tile.is-active {
+  --bs-btn-color: inherit;
+}
+
+/* Logos: use full chip width (columns are wide); cap height so rows stay tidy. */
+.employee-chip-icon {
+  display: block;
+  object-fit: contain;
+  object-position: center;
+  margin-inline: auto;
+}
+
+/* Companies & product lines: 4 per row. Payment methods: 5 per row — compact icons */
+.employee-company-tile .employee-chip-icon {
+  width: 100%;
+  max-width: 100%;
+  height: clamp(1.5rem, 7.5vw, 2.5rem);
+  max-height: 2.5rem;
+}
+
+/* Product lines sit one level deeper than companies in the visual
+   hierarchy (line picker → package picker), so render their icons a
+   notch smaller to keep the screen calm. */
+.employee-product-line-tile .employee-chip-icon {
+  width: 100%;
+  max-width: 100%;
+  height: clamp(0.95rem, 4.4vw, 1.5rem);
+  max-height: 1.5rem;
+}
+
+.employee-payment-tile .employee-chip-icon {
+  width: 100%;
+  max-width: 100%;
+  height: clamp(1.35rem, 5.5vw, 2.1rem);
+  max-height: 2.1rem;
+}
+
+/* Payment tiles inside the "Record customer payment" modal use a
+   dedicated class, so they need the same icon constraints as the main
+   employee payment tiles to prevent oversized logos. */
+#rd-pay-sub-payment-tiles .rd-pay-sub-pm-tile {
+  white-space: normal;
+  border: none !important;
+  box-shadow: none !important;
+  background-color: transparent !important;
+  min-height: clamp(1.9rem, 9vw, 2.85rem);
+  padding-block: 0.15rem !important;
+  padding-inline: 0.1rem !important;
+}
+
+#rd-pay-sub-payment-tiles .rd-pay-sub-pm-tile .employee-chip-icon {
+  width: 100%;
+  max-width: 100%;
+  height: clamp(1.35rem, 5.5vw, 2.1rem);
+  max-height: 2.1rem;
+  object-fit: contain;
+}
+
+#rd-pay-sub-payment-tiles .rd-pay-sub-pm-tile .employee-chip-icon-fallback {
+  width: 100%;
+  min-height: clamp(1.35rem, 5.5vw, 2.1rem);
+  font-size: clamp(0.68rem, 3.2vw, 0.95rem);
+  background-color: transparent;
+  color: var(--bs-body-color);
+  border: none;
+}
+
+#rd-pay-sub-payment-tiles .rd-pay-sub-pm-tile.is-active {
+  outline: none !important;
+  border: 2px solid var(--bs-primary) !important;
+  border-radius: 0.375rem;
+  background-color: rgba(var(--bs-primary-rgb), 0.18) !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(var(--bs-primary-rgb), 0.22),
+    0 0 0 2px rgba(var(--bs-primary-rgb), 0.2);
+}
+
+/* Customer payment submission modal polish */
+#rdCustomerPaySubModal .modal-dialog {
+  max-width: min(42rem, calc(100vw - 1rem));
+}
+
+#rdCustomerPaySubModal .modal-content {
+  border-radius: 0.9rem;
+  border: 1px solid var(--bs-border-color);
+  box-shadow: 0 16px 44px rgba(0, 0, 0, 0.16);
+}
+
+#rdCustomerPaySubModal .modal-header,
+#rdCustomerPaySubModal .modal-footer {
+  background: var(--bs-tertiary-bg);
+}
+
+#rdCustomerPaySubModal .modal-body {
+  padding: 0.85rem 0.9rem;
+}
+
+#rdCustomerPaySubModal .rd-pay-sub-note {
+  background: color-mix(in srgb, var(--bs-info-bg-subtle) 70%, transparent);
+  border: 1px solid color-mix(in srgb, var(--bs-info-border-subtle) 70%, transparent);
+  border-radius: 0.6rem;
+  padding: 0.45rem 0.6rem;
+}
+
+#rdCustomerPaySubModal .rd-pay-sub-block {
+  padding: 0.35rem 0.1rem;
+}
+
+#rdCustomerPaySubModal .rd-pay-sub-balance {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: color-mix(in srgb, var(--bs-primary-bg-subtle) 55%, transparent);
+  border: 1px solid color-mix(in srgb, var(--bs-primary-border-subtle) 65%, transparent);
+  border-radius: 999px;
+  padding: 0.24rem 0.58rem;
+}
+
+#rdCustomerPaySubModal .form-label {
+  margin-bottom: 0.32rem;
+}
+
+#rdCustomerPaySubModal .form-control {
+  min-height: 2.45rem;
+}
+
+#rdCustomerPaySubModal textarea#id_pay_sub_notes.form-control {
+  min-height: 0;
+  padding-top: 0.42rem;
+  padding-bottom: 0.42rem;
+  line-height: 1.45;
+  font-size: inherit;
+}
+
+#rdCustomerPaySubModal .rd-pay-sub-notes-wrap .employee-notes-details {
+  padding: 0.1rem 0;
+}
+
+#rdCustomerPaySubModal .modal-footer {
+  border-top-color: var(--bs-border-color);
+}
+
+#rdCustomerPaySubModal .modal-footer .btn {
+  min-width: 5.2rem;
+}
+
+.employee-chip-icon-fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  border-radius: 0.45rem;
+  margin-inline: auto;
+}
+
+.employee-company-tile .employee-chip-icon-fallback {
+  width: 100%;
+  min-height: clamp(1.5rem, 7.5vw, 2.5rem);
+  font-size: clamp(0.75rem, 3.8vw, 1.05rem);
+  background-color: rgba(var(--bs-primary-rgb), 0.15);
+  color: var(--bs-primary);
+}
+
+.employee-product-line-tile .employee-chip-icon-fallback {
+  width: 100%;
+  min-height: clamp(0.95rem, 4.4vw, 1.5rem);
+  font-size: clamp(0.6rem, 2.6vw, 0.8rem);
+  background-color: rgba(var(--bs-primary-rgb), 0.15);
+  color: var(--bs-primary);
+}
+
+.employee-company-tile,
+.employee-payment-tile,
+.employee-product-line-tile {
+  min-height: clamp(1.9rem, 9vw, 2.85rem);
+  padding-block: 0.15rem !important;
+  padding-inline: 0.1rem !important;
+}
+
+.employee-packages-panel {
+  border-radius: 0.375rem;
+  background-color: var(--bs-tertiary-bg);
+}
+
+.employee-package-chip {
+  font-size: 0.72rem !important;
+  font-weight: 500;
+  border: none !important;
+  background: transparent !important;
+  min-height: 0 !important;
+  white-space: normal;
+}
+
+.employee-company-tile.is-active .employee-chip-icon-fallback {
+  background-color: rgba(var(--bs-primary-rgb), 0.18);
+  color: var(--bs-primary);
+}
+
+.employee-product-line-tile.is-active .employee-chip-icon-fallback {
+  background-color: rgba(var(--bs-primary-rgb), 0.26);
+  color: var(--bs-primary);
+}
+
+.employee-product-line-tile.is-active .employee-chip-icon {
+  opacity: 1;
+}
+
+.employee-payment-tile .employee-chip-icon-fallback {
+  width: 100%;
+  min-height: clamp(1.35rem, 5.5vw, 2.1rem);
+  font-size: clamp(0.68rem, 3.2vw, 0.95rem);
+  background-color: transparent;
+  color: var(--bs-body-color);
+  border: none;
+}
+
+.employee-payment-tile.is-active .employee-chip-icon-fallback {
+  background-color: rgba(var(--bs-primary-rgb), 0.12);
+  color: var(--bs-primary);
+}
+
+/* d-flex beats [hidden] without !important — keep hint off until toggle is ON */
+#rd-employee-payment-hint[hidden] {
+  display: none !important;
+}
+
+/* "Received by" picker under the payment tiles: one row of compact chips */
+.rd-recipient-picker {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.5rem;
+  margin-top: 0.5rem;
+  padding: 0.25rem 0.375rem;
+  border-radius: 0.375rem;
+  background-color: var(--bs-tertiary-bg);
+}
+
+.rd-recipient-picker[hidden] {
+  display: none !important;
+}
+
+.rd-recipient-picker.is-invalid {
+  outline: 2px solid var(--bs-danger);
+  outline-offset: 1px;
+  background-color: rgba(var(--bs-danger-rgb), 0.06);
+}
+
+.rd-recipient-picker__label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--bs-secondary-color);
+  white-space: nowrap;
+}
+
+.rd-recipient-picker__options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.rd-recipient-chip {
+  padding-block: 0.2rem;
+  padding-inline: 0.6rem;
+  border: 2px solid var(--bs-border-color);
+  background-color: var(--bs-body-bg);
+  color: var(--bs-body-color);
+  font-weight: 500;
+}
+
+.rd-recipient-chip:focus-visible {
+  outline: 2px solid var(--bs-primary);
+  outline-offset: 2px;
+}
+
+.rd-recipient-chip.is-active,
+.rd-recipient-chip.is-active:hover,
+.rd-recipient-chip.is-active:active {
+  border-color: var(--bs-primary) !important;
+  background-color: rgba(var(--bs-primary-rgb), 0.18) !important;
+  box-shadow: inset 0 0 0 1px rgba(var(--bs-primary-rgb), 0.22);
+  color: inherit !important;
+  font-weight: 600;
+}
+
+.rd-recipient-chip.is-static {
+  cursor: default;
+  pointer-events: none;
+}
+
+/* Employee sale — eSIM toggle under selling price */
+.rd-esim-switch {
+  padding: 0;
+  margin: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  box-shadow: none;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.rd-esim-switch__row {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  align-items: center;
+  gap: 0.25rem 0.45rem;
+  font-size: 0.9375rem;
+  line-height: 1.25;
+}
+
+.rd-esim-switch .rd-esim-switch__toggle.form-check.form-switch {
+  margin-bottom: 0;
+  display: inline-flex;
+  align-items: center;
+  line-height: 1;
+  padding: 0;
+  padding-inline: 0;
+  min-height: 0;
+  flex: 0 0 auto;
+  max-width: 100%;
+  /* optical vertical match with label cap height */
+  transform: translateY(-0.0625rem);
+}
+
+/* Bootstrap sizes the track in em — bump font-size so switch height matches label */
+.rd-esim-switch .form-switch .form-check-input {
+  font-size: 1.0625rem;
+  margin-top: 0;
+  margin-inline: 0;
+  vertical-align: middle;
+}
+
+.rd-esim-switch__label {
+  font-weight: 600;
+  line-height: 1.25;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.12rem;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.rd-esim-switch__extra {
+  font-size: 0.8125rem;
+  font-weight: 400;
+  margin-inline-start: 0.08rem;
+}
+
+.rd-sale-preview {
+  background: var(--bs-tertiary-bg);
+  border-color: var(--bs-border-color) !important;
+}
+
+/* Recent entries — payer name line (sits between product title and ref/method) */
+.rd-recent-payer {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--bs-body-color);
+  margin-top: 0.05rem;
+  line-height: 1.25;
+}
+
+/* Employee sale — payer lookup + autocomplete (mobile-first) */
+.rd-payer-field-wrap {
+  position: relative;
+}
+
+/* Raise above following form sections so the absolute list is not painted under them. */
+.rd-payer-field-wrap:focus-within,
+.rd-payer-field-wrap.is-ac-open {
+  z-index: 1080;
+}
+
+.rd-payer-ac-anchor {
+  position: relative;
+}
+
+.rd-payer-prefill-hint {
+  font-size: 0.75rem;
+  line-height: 1.35;
+  color: var(--bs-secondary-color);
+  margin-top: 0.35rem;
+  min-height: 0;
+  padding-inline: 0.125rem;
+}
+
+.rd-payer-prefill-hint.is-visible {
+  color: var(--rd-info);
+}
+
+[data-bs-theme="dark"] .rd-payer-prefill-hint.is-visible {
+  color: var(--rd-info);
+}
+
+.rd-payer-ac-list {
+  position: absolute;
+  inset-inline: 0;
+  top: 100%;
+  margin-top: 0.25rem;
+  z-index: 1070;
+  max-height: min(50vh, 16rem);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: var(--rd-radius-sm, 10px);
+  border: 1px solid var(--bs-border-color);
+  background: var(--bs-secondary-bg);
+  box-shadow: var(--rd-shadow-md, 0 8px 24px rgba(15, 23, 42, 0.08));
+}
+
+.rd-payer-ac-item {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.15rem;
+  width: 100%;
+  text-align: start;
+  border: 0;
+  border-bottom: 1px solid var(--bs-border-color-translucent, var(--bs-border-color));
+  background: transparent;
+  color: var(--bs-body-color);
+  padding: 0.65rem 0.85rem;
+  min-height: 2.75rem;
+  font-size: 0.9375rem;
+  line-height: 1.3;
+  cursor: pointer;
+  transition: background-color var(--rd-transition-fast, 0.14s ease);
+}
+
+.rd-payer-ac-item:last-child {
+  border-bottom: 0;
+}
+
+.rd-payer-ac-item:hover,
+.rd-payer-ac-item:focus-visible {
+  background: var(--bs-tertiary-bg);
+  outline: none;
+}
+
+.rd-payer-ac-item.is-active {
+  background: var(--rd-accent-muted, rgba(194, 37, 95, 0.12));
+}
+
+.rd-payer-ac-item-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  min-width: 0;
+}
+
+.rd-payer-ac-item-name {
+  font-weight: 600;
+  word-break: break-word;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.rd-payer-ac-item-badge {
+  flex: 0 0 auto;
+  font-size: 0.625rem;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  padding: 0.2rem 0.45rem;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.rd-payer-ac-item-badge--credit {
+  color: var(--bs-warning-text-emphasis, #664d03);
+  background: var(--bs-warning-bg-subtle, rgba(255, 193, 7, 0.18));
+  border: 1px solid var(--bs-warning-border-subtle, rgba(255, 193, 7, 0.35));
+}
+
+.rd-payer-ac-item-badge--cash {
+  color: var(--bs-secondary-color);
+  background: var(--bs-tertiary-bg);
+  border: 1px solid var(--bs-border-color-translucent, var(--bs-border-color));
+}
+
+.rd-payer-ac-item-meta {
+  font-size: 0.6875rem;
+  font-weight: 500;
+  color: var(--bs-secondary-color);
+}
+
+/* Management dashboard — KPI grid & balance panel */
+.rd-dashboard-kpi-row > .col {
+  min-width: 0;
+}
+
+.rd-dashboard-kpi-row .rd-stat {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.rd-dashboard-kpi-row .rd-stat .rd-card-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 0.65rem 0.85rem;
+}
+
+.rd-dashboard-kpi-row .rd-kpi-spacer {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.rd-dashboard-kpi-row .rd-stat-icon {
+  width: 2rem;
+  height: 2rem;
+  margin-bottom: 0.3rem;
+}
+
+.rd-dashboard-kpi-row .rd-stat-icon svg {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
+.rd-dashboard-kpi-row .rd-stat-value {
+  font-size: clamp(1.15rem, 2.1vw, 1.42rem);
+  line-height: 1.05;
+}
+
+.rd-dashboard-kpi-row .rd-label {
+  margin-bottom: 0.2rem;
+}
+
+.rd-dashboard-kpi-row .rd-stat-meta {
+  margin-top: 0.35rem;
+  padding-top: 0.4rem;
+  border-top: 1px solid var(--bs-border-color-translucent, var(--bs-border-color));
+  font-size: 0.75rem;
+  line-height: 1.35;
+}
+
+.rd-dashboard-kpi-row .rd-stat-footnote {
+  margin-top: 0.3rem;
+  padding-top: 0.35rem;
+  font-size: 0.7rem;
+  color: var(--bs-secondary-color);
+  line-height: 1.3;
+}
+
+.rd-stat--loss::after {
+  background: radial-gradient(circle, var(--rd-danger-soft) 0%, transparent 72%);
+  opacity: 0.75;
+}
+
+.rd-dashboard-kpi-row .rd-stat-loss-trio {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.35rem 0.25rem;
+  margin-top: 0.3rem;
+  padding-top: 0.4rem;
+  border-top: 1px solid var(--bs-border-color-translucent, var(--bs-border-color));
+}
+
+.rd-dashboard-kpi-row .rd-stat-loss-trio__item {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.3rem;
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.rd-dashboard-kpi-row .rd-stat-loss-trio__lbl {
+  font-size: 0.58rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--bs-secondary-color);
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.rd-dashboard-kpi-row .rd-stat-loss-trio__val {
+  font-weight: 700;
+  font-size: clamp(0.8rem, 2vw, 0.95rem);
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Two-up split inside a single KPI card (used by the "Pending" card to
+   show pending payments and on-account approval requests side by side). */
+.rd-dashboard-kpi-row .rd-stat-pair {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 0.5rem;
+  margin-top: 0.3rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--bs-border-color-translucent, var(--bs-border-color));
+}
+
+.rd-dashboard-kpi-row .rd-stat-pair__item {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15rem;
+  padding: 0.2rem 0.35rem;
+  border-radius: 0.5rem;
+  text-decoration: none;
+  color: inherit;
+  transition: background-color 0.15s ease, transform 0.15s ease;
+}
+
+.rd-dashboard-kpi-row .rd-stat-pair__item:hover,
+.rd-dashboard-kpi-row .rd-stat-pair__item:focus-visible {
+  background: var(--bs-tertiary-bg, rgba(0, 0, 0, 0.04));
+  text-decoration: none;
+  color: inherit;
+  transform: translateY(-1px);
+}
+
+.rd-dashboard-kpi-row .rd-stat-pair__lbl {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--bs-secondary-color);
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.rd-dashboard-kpi-row .rd-stat-pair__val {
+  font-weight: 700;
+  font-size: clamp(1.1rem, 2.6vw, 1.4rem);
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.rd-dashboard-kpi-row .rd-stat-pair__divider {
+  width: 1px;
+  background: var(--bs-border-color-translucent, var(--bs-border-color));
+  align-self: stretch;
+  margin: 0.15rem 0;
+}
+
+.rd-dashboard-summary__value {
+  font-size: clamp(1.45rem, 2.8vw, 1.85rem);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+
+.rd-dashboard-summary__value--md {
+  font-size: clamp(1.25rem, 2.5vw, 1.55rem);
+}
+
+.rd-dashboard-financial-row .rd-dashboard-balance-list {
+  /* Show ~4 rows comfortably; scrollbar appears only when > 4 items.        */
+  /* Each row ≈ 3.55rem (padding 0.55*2 + content ~2.45rem + 1px border).    */
+  max-height: calc(3.55rem * 4 + 0.5rem);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-gutter: stable;
+}
+
+@media (min-width: 768px) {
+  .rd-dashboard-financial-row .col-md-6 {
+    display: flex;
+  }
+
+  /* Let supplier list height follow content; avoids forcing a tall empty band
+   * beside the month card when the two columns were stretch-aligned. */
+  .rd-dashboard-financial-row .rd-card.min-h-0 {
+    min-height: 0;
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Dashboard — tighter chrome + less empty gutter                             */
+/* -------------------------------------------------------------------------- */
+.rd-page-header--dashboard {
+  margin-bottom: 0.85rem;
+}
+
+/* -------------------------------------------------------------------------- */
+/* All-time KPI block under month card — reuses .rd-stat-pair (same as Loss)   */
+/* -------------------------------------------------------------------------- */
+/* Recent activity: columns hug their content and the last one absorbs the
+   spare width, so the free space sits at the row end instead of between columns. */
+.rd-activity-table > thead > tr > th,
+.rd-activity-table > tbody > tr > td {
+  width: 1%;
+  white-space: nowrap;
+  padding-block: 0.45rem;
+  padding-inline: 0.9rem;
+}
+
+.rd-activity-table > thead > tr > th:last-child,
+.rd-activity-table > tbody > tr > td:last-child {
+  width: auto;
+}
+
+.rd-activity-table > tbody > tr:last-child > td {
+  border-bottom: 0;
+}
+
+.rd-activity-table > tbody > tr.rd-activity-empty > td {
+  width: auto;
+  white-space: normal;
+  padding-block: 1.75rem;
+  text-align: center;
+  color: var(--bs-secondary-color);
+  --bs-table-bg-type: transparent;
+  --bs-table-bg-state: transparent;
+  --bs-table-accent-bg: transparent;
+  box-shadow: none;
+}
+
+.rd-dashboard-kpi-row .rd-stat.rd-dashboard-alltime-stat .rd-card-body {
+  padding: 0.55rem 0.65rem 0.6rem;
+}
+
+/* .rd-stat::after is a radial accent at inline-end; in RTL that is the visual left edge,
+   so the purple glow stacks behind only one column of this narrow strip. */
+.rd-dashboard-alltime-stat::after,
+.rd-dashboard-section--today .rd-stat::after {
+  display: none;
+}
+
+.rd-dashboard-kpi-row .rd-stat-pair.rd-stat-pair--flush-top {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
+}
+
+.rd-dashboard-alltime-stat .rd-stat-pair__lbl {
+  white-space: normal;
+  text-align: center;
+  line-height: 1.2;
+  max-width: 6.5rem;
+}
+
+/* -------------------------------------------------------------------------- */
+/* "This month profit" card (dashboard, financial row)                        */
+/* -------------------------------------------------------------------------- */
+.rd-month-card .rd-card-body {
+  padding: 1.1rem 1.25rem 1rem;
+  gap: 0.5rem;
+}
+
+.rd-month-card__head {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.rd-month-card__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 0.65rem;
+  background: var(--rd-success-soft, color-mix(in srgb, var(--rd-success) 14%, transparent));
+  color: var(--rd-success);
+  flex: 0 0 auto;
+}
+
+.rd-month-card__head-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.rd-month-card__title {
+  margin-bottom: 0;
+}
+
+.rd-month-card__period {
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--bs-secondary-color);
+  letter-spacing: 0.01em;
+  text-transform: capitalize;
+  margin-top: 0.1rem;
+}
+
+.rd-month-card__value-wrap {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.35rem 0 0.25rem;
+  min-height: 0;
+}
+
+.rd-month-card__value {
+  font-size: clamp(1.65rem, 3.8vw, 2.35rem);
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  text-align: center;
+}
+
+.rd-month-card__split {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 0.5rem;
+  padding-top: 0.65rem;
+  margin-top: auto;
+  border-top: 1px solid var(--bs-border-color-translucent, var(--bs-border-color));
+}
+
+.rd-month-card__cell {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.15rem 0.25rem;
+}
+
+.rd-month-card__lbl {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--bs-secondary-color);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.rd-month-card__val {
+  font-weight: 700;
+  font-size: clamp(1rem, 2.2vw, 1.2rem);
+  letter-spacing: -0.01em;
+  line-height: 1.1;
+}
+
+.rd-month-card__divider {
+  width: 1px;
+  background: var(--bs-border-color-translucent, var(--bs-border-color));
+  align-self: stretch;
+  flex: 0 0 auto;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Supplier balances panel (dashboard)                                        */
+/* -------------------------------------------------------------------------- */
+.rd-card-header-icon {
+  color: var(--bs-secondary-color);
+  flex: 0 0 auto;
+}
+
+.rd-supplier-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.rd-supplier-list > li + li {
+  border-top: 1px solid color-mix(in srgb, var(--bs-border-color) 70%, transparent);
+}
+
+.rd-supplier-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.55rem 1rem;
+  text-decoration: none;
+  color: inherit;
+  transition: background 120ms ease;
+}
+
+.rd-supplier-row:hover,
+.rd-supplier-row:focus-visible {
+  background: var(--bs-tertiary-bg);
+  color: inherit;
+  outline: none;
+}
+
+.rd-supplier-row:focus-visible {
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--rd-accent, #c2255f) 55%, transparent);
+}
+
+/* Letter avatar — soft tinted background with bold accent letter.           */
+/* Color rotates per row so adjacent suppliers stay easy to distinguish.     */
+.rd-supplier-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.45rem;
+  height: 2.45rem;
+  border-radius: 0.7rem;
+  font-weight: 700;
+  font-size: 0.95rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  flex: 0 0 auto;
+  background: color-mix(in srgb, var(--rd-accent, #c2255f) 14%, transparent);
+  color: color-mix(in srgb, var(--rd-accent, #c2255f) 78%, var(--bs-body-color));
+  border: 1px solid color-mix(in srgb, var(--rd-accent, #c2255f) 22%, transparent);
+}
+
+.rd-supplier-list > li:nth-child(6n+1) .rd-supplier-avatar {
+  background: color-mix(in srgb, #c2255f 14%, transparent);
+  color: #c2255f;
+  border-color: color-mix(in srgb, #c2255f 22%, transparent);
+}
+
+.rd-supplier-list > li:nth-child(6n+2) .rd-supplier-avatar {
+  background: color-mix(in srgb, #10b981 14%, transparent);
+  color: #059669;
+  border-color: color-mix(in srgb, #10b981 22%, transparent);
+}
+
+.rd-supplier-list > li:nth-child(6n+3) .rd-supplier-avatar {
+  background: color-mix(in srgb, #f59e0b 16%, transparent);
+  color: #b45309;
+  border-color: color-mix(in srgb, #f59e0b 24%, transparent);
+}
+
+.rd-supplier-list > li:nth-child(6n+4) .rd-supplier-avatar {
+  background: color-mix(in srgb, #ec4899 14%, transparent);
+  color: #be185d;
+  border-color: color-mix(in srgb, #ec4899 22%, transparent);
+}
+
+.rd-supplier-list > li:nth-child(6n+5) .rd-supplier-avatar {
+  background: color-mix(in srgb, #06b6d4 14%, transparent);
+  color: #0e7490;
+  border-color: color-mix(in srgb, #06b6d4 22%, transparent);
+}
+
+.rd-supplier-list > li:nth-child(6n) .rd-supplier-avatar {
+  background: color-mix(in srgb, #8b5cf6 14%, transparent);
+  color: #7c3aed;
+  border-color: color-mix(in srgb, #8b5cf6 22%, transparent);
+}
+
+[data-bs-theme="dark"] .rd-supplier-list > li:nth-child(6n+1) .rd-supplier-avatar { color: #f2608a; }
+[data-bs-theme="dark"] .rd-supplier-list > li:nth-child(6n+2) .rd-supplier-avatar { color: #6ee7b7; }
+[data-bs-theme="dark"] .rd-supplier-list > li:nth-child(6n+3) .rd-supplier-avatar { color: #fcd34d; }
+[data-bs-theme="dark"] .rd-supplier-list > li:nth-child(6n+4) .rd-supplier-avatar { color: #f9a8d4; }
+[data-bs-theme="dark"] .rd-supplier-list > li:nth-child(6n+5) .rd-supplier-avatar { color: #67e8f9; }
+[data-bs-theme="dark"] .rd-supplier-list > li:nth-child(6n)   .rd-supplier-avatar { color: #c4b5fd; }
+
+.rd-supplier-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.rd-supplier-name {
+  font-weight: 600;
+  color: var(--bs-body-color);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
+}
+
+.rd-supplier-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--bs-secondary-color);
+}
+
+.rd-supplier-dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: currentColor;
+  flex: 0 0 auto;
+}
+
+.rd-supplier-meta.is-success {
+  color: var(--rd-success);
+}
+
+.rd-supplier-meta.is-warning {
+  color: var(--rd-warning);
+}
+
+.rd-supplier-meta.is-danger {
+  color: var(--rd-danger);
+}
+
+.rd-supplier-amount {
+  font-size: 0.95rem;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+.rd-supplier-chevron {
+  color: var(--bs-secondary-color);
+  opacity: 0.6;
+  flex: 0 0 auto;
+  transition: transform 140ms ease, opacity 140ms ease;
+}
+
+.rd-supplier-row:hover .rd-supplier-chevron,
+.rd-supplier-row:focus-visible .rd-supplier-chevron {
+  opacity: 1;
+  transform: translateX(2px);
+}
+
+[dir="rtl"] .rd-supplier-chevron {
+  transform: scaleX(-1);
+}
+
+[dir="rtl"] .rd-supplier-row:hover .rd-supplier-chevron,
+[dir="rtl"] .rd-supplier-row:focus-visible .rd-supplier-chevron {
+  transform: scaleX(-1) translateX(2px);
+}
+
+.rd-supplier-empty {
+  padding: 1.5rem 1rem;
+  text-align: center;
+  color: var(--bs-secondary-color);
+  font-size: 0.875rem;
+}

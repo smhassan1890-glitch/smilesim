@@ -1,0 +1,15 @@
+{% load i18n %}
+<tr>
+  <td>
+    {% for hidden in f.hidden_fields %}{{ hidden }}{% endfor %}
+    {{ f.name }}
+    {% for err in f.name.errors %}<div class="small text-danger mt-1">{{ err }}</div>{% endfor %}
+    {% for err in f.non_field_errors %}<div class="small text-danger mt-1">{{ err }}</div>{% endfor %}
+  </td>
+  <td>
+    {{ f.sort_order }}
+    {% for err in f.sort_order.errors %}<div class="small text-danger mt-1">{{ err }}</div>{% endfor %}
+  </td>
+  <td class="text-center">{{ f.is_active }}</td>
+  <td class="text-center">{{ f.DELETE }}</td>
+</tr>

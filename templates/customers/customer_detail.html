@@ -1,0 +1,276 @@
+{% extends "base_management.html" %}
+{% load i18n humanize static ui_tags %}
+{% block content %}
+<div class="rd-page-header d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+  <div>
+    <h1 class="rd-heading-xl mb-1">{{ customer.name }}</h1>
+    <p class="rd-text-muted mb-0">
+      {% trans "Customer account" %}
+      {% if not customer.is_active %} · <span class="text-warning">{% trans "Inactive" %}</span>{% endif %}
+    </p>
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    <a class="btn btn-primary" href="{% url 'customers:customer_statement' customer.pk %}">{% trans "Statement" %}</a>
+    <a class="btn btn-outline-primary" href="{% url 'customers:customer_detailed_invoice' customer.pk %}">{% trans "Detailed invoice" %}</a>
+    <a class="btn btn-outline-secondary" href="{% url 'customers:customer_list' %}">{% trans "Back" %}</a>
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-12 col-md-4">
+    <div class="rd-card p-3">
+      <div class="small text-secondary">
+        {% if customer.current_balance > 0 %}{% trans "Outstanding debt" %}{% elif customer.current_balance < 0 %}{% trans "Credit on file" %}{% else %}{% trans "Current balance" %}{% endif %}
+      </div>
+      <div class="h3 mb-0 tabular-nums fw-bold {% if customer.current_balance > 0 %}kpi-expense{% elif customer.current_balance < 0 %}text-success{% endif %}">
+        {% if customer.current_balance < 0 %}{{ customer.current_balance|cut:"-"|intcomma }}{% else %}{{ customer.current_balance|intcomma }}{% endif %}
+      </div>
+      <div class="small text-secondary mt-1">
+        {% if customer.current_balance > 0 %}{% trans "Customer owes the shop." %}{% elif customer.current_balance < 0 %}{% trans "Shop owes the customer (overpayment)." %}{% else %}{% trans "Settled." %}{% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-4">
+    <div class="rd-card p-3">
+      <div class="small text-secondary">{% trans "Awaiting approval" %}</div>
+      <div class="h4 mb-0">{{ awaiting_count }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-4">
+    <div class="rd-card p-3">
+      <div class="small text-secondary">{% trans "Pending on account" %}</div>
+      <div class="h4 mb-0">{{ pending_count }}</div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-12 col-lg-7">
+    <div class="rd-card mb-3">
+      <div class="rd-card-body">
+        <h2 class="h5 mb-3">{% trans "On-account sales" %}</h2>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0">
+            <thead>
+              <tr>
+                <th>{% trans "Date" %}</th>
+                <th>{% trans "Reference" %}</th>
+                <th>{% trans "Product" %}</th>
+                <th class="text-end">{% trans "Price" %}</th>
+                <th>{% trans "Status" %}</th>
+                <th class="text-end">{% trans "Actions" %}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for s in sales_page %}
+                <tr id="customer-sale-row-{{ s.pk }}">
+                  <td class="small text-nowrap">{{ s.created_at|date:"Y-m-d H:i" }}</td>
+                  <td class="text-nowrap">{{ s.reference_number }}</td>
+                  <td>{{ s.product.display_name }}</td>
+                  <td class="text-end tabular-nums">{{ s.sell_price_actual|intcomma }}</td>
+                  <td>
+                    {% if s.status == 'awaiting' %}
+                      <span class="rd-badge rd-badge--warning">{% trans "Awaiting" %}</span>
+                    {% elif s.status == 'pending' %}
+                      <span class="rd-badge rd-badge--neutral">{% trans "Pending" %}</span>
+                    {% elif s.status == 'paid' %}
+                      <span class="rd-badge">{% trans "Paid" %}</span>
+                    {% elif s.status == 'cancelled' %}
+                      <span class="rd-badge rd-badge--neutral">{% trans "Cancelled" %}</span>
+                    {% endif %}
+                  </td>
+                  <td class="text-end">
+                    <button
+                      type="button"
+                      class="btn btn-sm btn-outline-danger"
+                      hx-post="{% url 'sales:sale_delete_permanent' s.pk %}"
+                      hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                      hx-target="#customer-sale-row-{{ s.pk }}"
+                      hx-swap="outerHTML swap:200ms"
+                      hx-confirm="{% trans 'Permanently delete this sale and reverse it from the customer balance and reports?' %}"
+                      title="{% trans 'Delete permanently' %}"
+                    >{% trans "Delete" %}</button>
+                  </td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="6" class="text-center py-3 text-secondary">{% trans "No on-account sales." %}</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% include "partials/pagination.html" with page_obj=sales_page page_key="sales_page" pagination_reset_sibling_pages=True %}
+      </div>
+    </div>
+
+    <div class="rd-card">
+      <div class="rd-card-body">
+        <h2 class="h5 mb-3">{% trans "Ledger" %}</h2>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0">
+            <thead>
+              <tr>
+                <th>{% trans "Date" %}</th>
+                <th>{% trans "Type" %}</th>
+                <th class="text-end">{% trans "Amount" %}</th>
+                <th>{% trans "Reference" %}</th>
+                <th>{% trans "By" %}</th>
+                <th class="text-end">{% trans "Actions" %}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for l in ledger_page %}
+                <tr id="customer-ledger-row-{{ l.pk }}">
+                  <td class="small text-nowrap">{{ l.created_at|date:"Y-m-d H:i" }}</td>
+                  <td>{{ l.get_entry_type_display }}</td>
+                  <td class="text-end tabular-nums {% if l.entry_type == 'charge' %}kpi-expense{% elif l.entry_type == 'payment' %}text-success{% elif l.entry_type == 'adjustment' %}{% if l.amount > 0 %}kpi-expense{% else %}text-success{% endif %}{% endif %}">{{ l.amount|intcomma }}</td>
+                  <td class="small">
+                    {% if l.sale_id %}#{{ l.sale_id }}{% endif %}
+                    {% if l.payment_id %}{% trans "Payment" %} #{{ l.payment_id }}{% endif %}
+                    {% if l.notes %}
+                      <div class="text-secondary mt-1">{{ l.notes }}</div>
+                    {% elif l.payment_id and l.payment.notes %}
+                      <div class="text-secondary mt-1">{{ l.payment.notes }}</div>
+                    {% endif %}
+                  </td>
+                  <td class="small">{% if l.created_by %}{{ l.created_by.username }}{% endif %}</td>
+                  <td class="text-end">
+                    {% if l.entry_type == 'payment' and l.payment_id %}
+                      <button
+                        type="button"
+                        class="btn btn-sm btn-outline-danger"
+                        hx-post="{% url 'customers:customer_payment_delete' customer.pk l.payment_id %}"
+                        hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                        hx-swap="none"
+                        hx-confirm="{% trans 'Delete this payment? Any sales it had settled will be moved back to pending.' %}"
+                        title="{% trans 'Delete payment' %}"
+                      >{% trans "Delete" %}</button>
+                    {% else %}
+                      <button
+                        type="button"
+                        class="btn btn-sm btn-outline-danger"
+                        hx-post="{% url 'customers:customer_ledger_delete' customer.pk l.pk %}"
+                        hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                        hx-target="#customer-ledger-row-{{ l.pk }}"
+                        hx-swap="outerHTML swap:200ms"
+                        hx-confirm="{% trans 'Delete this ledger entry and reverse it from the customer balance?' %}"
+                        title="{% trans 'Delete ledger entry' %}"
+                      >{% trans "Delete" %}</button>
+                    {% endif %}
+                  </td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="6" class="text-center py-3 text-secondary">{% trans "No ledger entries." %}</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% include "partials/pagination.html" with page_obj=ledger_page page_key="ledger_page" pagination_reset_sibling_pages=True %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-lg-5">
+    <div class="rd-card mb-3">
+      <div class="rd-card-header fw-semibold">{% trans "Record payment" %}</div>
+      <div class="rd-card-body">
+        <form method="post" action="{% url 'customers:customer_record_payment' customer.pk %}" class="d-grid gap-2" novalidate>
+          {% csrf_token %}
+          {{ payment_form.amount.label_tag }} {{ payment_form.amount }}{{ payment_form.amount.errors }}
+          {{ payment_form.payment_method.label_tag }} {{ payment_form.payment_method }}{{ payment_form.payment_method.errors }}
+          {{ payment_form.payment_recipient.label_tag }} {{ payment_form.payment_recipient }}{{ payment_form.payment_recipient.errors }}
+          {{ payment_form.notes.label_tag }} {{ payment_form.notes }}{{ payment_form.notes.errors }}
+          <button class="btn btn-primary" type="submit">{% trans "Record payment" %}</button>
+          <p class="small text-secondary mb-0">
+            {% trans "FIFO settlement: the oldest pending charges get marked Paid first; any extra remains as customer credit." %}
+          </p>
+        </form>
+      </div>
+    </div>
+
+    <div class="rd-card mb-3">
+      <div class="rd-card-header fw-semibold">{% trans "Balance adjustment" %}</div>
+      <div class="rd-card-body">
+        <form method="post" action="{% url 'customers:customer_record_adjustment' customer.pk %}" class="d-grid gap-2" novalidate>
+          {% csrf_token %}
+          {{ adjustment_form.signed_amount.label_tag }} {{ adjustment_form.signed_amount }}{{ adjustment_form.signed_amount.errors }}
+          {{ adjustment_form.notes.label_tag }} {{ adjustment_form.notes }}{{ adjustment_form.notes.errors }}
+          <button class="btn btn-outline-primary" type="submit">{% trans "Save adjustment" %}</button>
+          <p class="small text-secondary mb-0">
+            {% trans "Touches the customer balance only. Does not affect sales, profit, or loss reports. Payments settle manual debt before marking on-account sales paid." %}
+          </p>
+        </form>
+      </div>
+    </div>
+
+    <div class="rd-card mb-3">
+      <div class="rd-card-header fw-semibold">{% trans "Phones" %}</div>
+      <div class="rd-card-body">
+        <ul class="list-group list-group-flush mb-3">
+          {% for p in phones_page %}
+            <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+              <span>
+                <span class="rd-badge rd-badge--neutral">{{ p.phone }}</span>
+                {% if p.label %}<span class="small text-secondary ms-2">{{ p.label }}</span>{% endif %}
+              </span>
+              <form method="post" action="{% url 'customers:customer_remove_phone' customer.pk p.pk %}" onsubmit="return confirm('{% trans "Remove this phone?" %}');">
+                {% csrf_token %}
+                <button class="btn btn-sm btn-outline-danger" type="submit">{% trans "Remove" %}</button>
+              </form>
+            </li>
+          {% empty %}
+            <li class="list-group-item small text-secondary px-0">{% trans "No phones linked." %}</li>
+          {% endfor %}
+        </ul>
+        <form method="post" action="{% url 'customers:customer_add_phone' customer.pk %}" class="row g-2">
+          {% csrf_token %}
+          <div class="col-7">{{ phone_form.phone }}</div>
+          <div class="col-5"><button class="btn btn-outline-primary w-100" type="submit">{% trans "Add" %}</button></div>
+        </form>
+        {% include "partials/pagination.html" with page_obj=phones_page page_key="phones_page" pagination_reset_sibling_pages=True %}
+      </div>
+    </div>
+
+    <div class="rd-card">
+      <div class="rd-card-header fw-semibold">{% trans "Recent payments" %}</div>
+      <div class="rd-card-body">
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0">
+            <thead><tr>
+              <th>{% trans "Date" %}</th><th>{% trans "Method" %}</th><th class="text-end">{% trans "Amount" %}</th><th class="text-end">{% trans "Actions" %}</th>
+            </tr></thead>
+            <tbody>
+              {% for p in payments %}
+                <tr id="customer-payment-row-{{ p.pk }}">
+                  <td class="small text-nowrap">{{ p.created_at|date:"Y-m-d H:i" }}</td>
+                  <td>
+                    {% if p.paid_via_employee %}
+                      {% trans "To employee" %}{% if p.employee_recipient %} · {{ p.employee_recipient.display_name }}{% endif %}
+                    {% elif p.payment_method %}
+                      {{ p.payment_method.name|tdb }}
+                    {% else %}—{% endif %}
+                  </td>
+                  <td class="text-end tabular-nums text-success">{{ p.amount|intcomma }}</td>
+                  <td class="text-end">
+                    <button
+                      type="button"
+                      class="btn btn-sm btn-outline-danger"
+                      hx-post="{% url 'customers:customer_payment_delete' customer.pk p.pk %}"
+                      hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                      hx-swap="none"
+                      hx-confirm="{% trans 'Delete this payment? Any sales it had settled will be moved back to pending.' %}"
+                      title="{% trans 'Delete payment' %}"
+                    >{% trans "Delete" %}</button>
+                  </td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="4" class="text-center py-3 text-secondary">{% trans "No payments yet." %}</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="{% static 'js/recipient-select-filter.js' %}{{ static_cache_query }}" defer></script>
+{% endblock %}

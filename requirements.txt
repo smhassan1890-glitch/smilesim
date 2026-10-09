@@ -1,0 +1,14 @@
+Django>=4.2,<5
+Pillow>=9,<11
+# Production WSGI + PostgreSQL (safe to install in dev; unused unless production settings + DB)
+gunicorn>=22,<24
+psycopg[binary]>=3.1,<4
+# Coolify / 12-factor: parse DATABASE_URL into a Django DATABASES dict.
+dj-database-url>=2.2,<3
+# Static file serving from gunicorn (no separate CDN/nginx needed for assets).
+whitenoise[brotli]>=6.7,<7
+# Sky Sales portal (reconcile): HTTP client + TOTP from authenticator QR
+requests>=2.31,<3
+pyotp>=2.9,<3
+# Layan charges report import (.xlsx)
+openpyxl>=3.1,<4
