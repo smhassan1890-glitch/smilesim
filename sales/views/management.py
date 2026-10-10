@@ -2,7 +2,7 @@
 
 from django.contrib import messages
 from django.db import DatabaseError, IntegrityError
-from django.db.models import Q
+from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.translation import gettext_lazy as _
 
@@ -81,10 +81,18 @@ def pending_payments(request):
             "product",
             "product__line",
             "payment_method",
+            "payment_recipient",
             "created_by",
             "employee_recipient",
             "employee_recipient__user",
             "employee_recipient__user__profile",
+        )
+        .annotate(
+            method_active_recipients=Count(
+                "payment_method__recipients",
+                filter=Q(payment_method__recipients__is_active=True),
+                distinct=True,
+            )
         )
     )
     form = ManagementSaleFilterForm(request.GET or None)

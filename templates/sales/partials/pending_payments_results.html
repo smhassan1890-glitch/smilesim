@@ -51,7 +51,10 @@
                 <button type="button" class="btn btn-sm btn-link p-0 ms-1 rd-copy-ref" data-copy="{{ s.reference_number }}" title="{% trans 'Copy reference' %}">⎘</button>
               </td>
               <td>{{ s.payer_name }}</td>
-              <td><span class="rd-badge rd-badge--neutral">{{ s.payment_method.name|tdb }}</span></td>
+              <td>
+                <span class="rd-badge rd-badge--neutral">{{ s.payment_method.name|tdb }}</span>
+                <div class="mt-1">{% include "sales/partials/pending_payment_recipient.html" with s=s %}</div>
+              </td>
               <td class="fw-semibold tabular-nums text-end kpi-warning">{{ s.sell_price_actual|intcomma }}</td>
               <td class="small text-secondary">{{ s.created_by.username }}</td>
               <td class="text-end text-nowrap">
@@ -118,6 +121,7 @@
         <div class="mt-1 d-flex align-items-center gap-2 flex-wrap">
           <span class="rd-mobile-k">{% trans "Method" %}</span>
           <span class="rd-badge rd-badge--neutral">{{ s.payment_method.name|tdb }}</span>
+          {% include "sales/partials/pending_payment_recipient.html" with s=s %}
         </div>
         <div class="kpi-warning fw-bold mt-1">{{ s.sell_price_actual|intcomma }}</div>
         {% if s.notes %}

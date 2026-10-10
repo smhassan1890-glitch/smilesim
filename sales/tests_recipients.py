@@ -645,6 +645,64 @@ class SaleEditRecipientTests(TestCase):
                 self.assertContains(response, "js/recipient-select-filter.js")
 
 
+class PendingPaymentsRecipientTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.mgr = User.objects.create_user("pending_recip_mgr", password="x")
+        UserProfile.objects.update_or_create(
+            user=cls.mgr,
+            defaults={"role": UserProfile.Role.MANAGEMENT, "is_active_profile": True},
+        )
+        cls.company = Company.objects.create(
+            name="PendingRecipCo",
+            opening_balance=Decimal("1000"),
+            current_balance=Decimal("1000"),
+        )
+        cls.line = ProductLine.objects.create(company=cls.company, name="L")
+        cls.product = Product.objects.create(
+            line=cls.line,
+            variant_label="P",
+            cost_price=Decimal("5"),
+            default_sell_price=Decimal("20"),
+        )
+        cls.pm = PaymentMethod.objects.create(name="Jawwal Pay")
+        cls.a = PaymentRecipient.objects.create(payment_method=cls.pm, name="أحمد", sort_order=0)
+        cls.b = PaymentRecipient.objects.create(payment_method=cls.pm, name="رامز", sort_order=1)
+
+    def setUp(self):
+        self.client.force_login(self.mgr)
+
+    def _pending_sale(self, recipient):
+        return create_sale(
+            company=self.company,
+            product=self.product,
+            reference_number="0501234567",
+            payer_name="Ali",
+            payment_method=self.pm,
+            sell_price_actual=Decimal("20"),
+            notes="",
+            user=self.mgr,
+            payment_recipient=recipient,
+        )
+
+    def test_pending_page_shows_chosen_recipient(self):
+        self._pending_sale(self.b)
+
+        response = self.client.get(reverse("sales:pending_payments"))
+
+        self.assertContains(response, "رامز")
+        self.assertNotContains(response, "أحمد")
+
+    def test_pending_page_flags_missing_recipient_on_multi_recipient_method(self):
+        sale = self._pending_sale(self.a)
+        Sale.objects.filter(pk=sale.pk).update(payment_recipient=None)
+
+        response = self.client.get(reverse("sales:pending_payments"))
+
+        self.assertContains(response, "No recipient")
+        self.assertContains(response, reverse("sales:sale_edit", args=[sale.pk]))
+
+
 class RecipientFormErrorTests(TestCase):
     @classmethod
     def setUpTestData(cls):
