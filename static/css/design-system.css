@@ -131,6 +131,13 @@ html {
   --bs-primary-rgb: 242, 96, 138;
   --bs-link-color: #ff7aa2;
   --bs-link-hover-color: #ffb3c9;
+
+  /* White edge glow for transparent logos whose dark strokes vanish on this
+     bg: a crisp rim traces the shapes, wider layers spread the halo. */
+  --rd-logo-glow:
+    drop-shadow(0 0 1px #ffffff)
+    drop-shadow(0 0 4px rgba(255, 255, 255, 0.6))
+    drop-shadow(0 0 12px rgba(255, 255, 255, 0.4));
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -349,6 +356,11 @@ body.app-shell {
   max-height: 3rem;
   height: auto;
   object-fit: contain;
+}
+
+[data-bs-theme="dark"] .rd-sidebar-brand-logo,
+[data-bs-theme="dark"] .login-brand-img {
+  filter: var(--rd-logo-glow);
 }
 
 /* Tighten the surrounding chrome when the brand is just a logo so the
