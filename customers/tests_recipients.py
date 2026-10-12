@@ -98,20 +98,6 @@ class RecordPaymentRecipientTests(CustomerPaymentRecipientTestCase):
         payment = self._pay("30", None)
         self.assertEqual(payment.payment_recipient_id, self.ahmad.pk)
 
-    def test_paid_via_employee_payment_has_no_recipient(self):
-        from employees.models import EmployeeProfile
-
-        profile = EmployeeProfile.objects.create(user=self.emp, monthly_salary=Decimal("0"))
-        payment = record_customer_payment(
-            customer=self.customer,
-            amount=Decimal("30"),
-            payment_method=None,
-            user=self.user,
-            paid_via_employee=True,
-            employee_recipient=profile,
-        )
-        self.assertIsNone(payment.payment_recipient_id)
-
 
 class SubmissionRecipientTests(CustomerPaymentRecipientTestCase):
     def test_submission_then_approval_copies_recipient(self):
@@ -297,24 +283,6 @@ class EmployeeModalRecipientTests(CustomerPaymentRecipientTestCase):
         form = self._submission_form(payment_recipient="999999")
         self.assertFalse(form.is_valid())
         self.assertEqual(len(form.errors["payment_recipient"]), 1, form.errors)
-
-    def test_submission_form_paid_via_employee_ignores_stale_recipient(self):
-        from core.models import AppSettings
-        from employees.models import EmployeeProfile
-
-        AppSettings.objects.update_or_create(
-            pk=1, defaults={"sales_show_employee_payment": True}
-        )
-        EmployeeProfile.objects.create(user=self.emp, monthly_salary=Decimal("0"))
-        self.emp.refresh_from_db()
-        self.sami.is_active = False
-        self.sami.save(update_fields=["is_active"])
-
-        form = self._submission_form(
-            paid_via_employee="True", payment_method="", payment_recipient=str(self.sami.pk)
-        )
-        self.assertTrue(form.is_valid(), form.errors)
-        self.assertIsNone(form.cleaned_data["payment_recipient"])
 
     def test_entry_page_renders_modal_recipient_picker(self):
         response = self.client.get(reverse("sales:employee_entry"))

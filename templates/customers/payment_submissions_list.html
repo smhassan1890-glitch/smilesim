@@ -47,9 +47,7 @@
                 </td>
                 <td class="tabular-nums text-end fw-semibold">{{ row.amount|intcomma }}</td>
                 <td>
-                  {% if row.paid_via_employee %}
-                    {% trans "To employee" %}{% if row.employee_recipient %} · {{ row.employee_recipient.display_name }}{% endif %}
-                  {% elif row.payment_method %}
+                  {% if row.payment_method %}
                     {{ row.payment_method.name }}
                     {% if row.payment_recipient %}<div class="small text-secondary">{{ row.payment_recipient.name }}</div>{% endif %}
                   {% else %}—{% endif %}
@@ -94,9 +92,7 @@
           <div class="mt-2">
             <span class="rd-mobile-k d-block">{% trans "Payment method" %}</span>
             <span class="rd-mobile-v">
-              {% if row.paid_via_employee %}
-                {% trans "To employee" %}{% if row.employee_recipient %} · {{ row.employee_recipient.display_name }}{% endif %}
-              {% elif row.payment_method %}
+              {% if row.payment_method %}
                 {{ row.payment_method.name }}
                 {% if row.payment_recipient %}<span class="d-block small text-secondary">{{ row.payment_recipient.name }}</span>{% endif %}
               {% else %}—{% endif %}

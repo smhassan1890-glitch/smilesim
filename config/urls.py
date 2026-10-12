@@ -34,7 +34,6 @@ urlpatterns += i18n_patterns(
     path("", include("expenses.urls")),
     path("", include("reports.urls")),
     path("", include("customers.urls")),
-    path("", include("employees.urls")),
     path("", include("audit.urls")),
     prefix_default_language=False,
 )

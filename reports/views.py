@@ -127,9 +127,6 @@ def dashboard(request):
             "product__line",
             "created_by",
             "payment_method",
-            "employee_recipient",
-            "employee_recipient__user",
-            "employee_recipient__user__profile",
         )
         .order_by("-created_at")[:12]
     )
@@ -440,9 +437,6 @@ def sales_report(request):
         "product__line",
         "payment_method",
         "created_by",
-        "employee_recipient",
-        "employee_recipient__user",
-        "employee_recipient__user__profile",
     ).order_by("-created_at")
     data = form.cleaned_data if form.is_valid() else {}
     qs = apply_management_sale_filter_data(qs, data)

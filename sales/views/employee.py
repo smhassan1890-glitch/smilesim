@@ -26,7 +26,6 @@ from sales.employee_editing import (
 from sales.payer_lookup import latest_sale_for_reference, payer_name_suggestions
 from sales.pricing import ESIM_EXTRA_COST
 from sales.recipients import recipients_json
-from employees.services import get_acting_employee_profile
 from sales.services import create_sale, delete_sale_permanently, update_sale_fields
 from sales.views._shared import htmx_action_error, htmx_remove_target, is_htmx
 
@@ -73,7 +72,6 @@ def employee_entry(request):
     payment_methods = list(PaymentMethod.objects.filter(is_active=True).order_by("name"))
     for pm in payment_methods:
         pm.recipients_json = recipients_json(pm)
-    acting_employee = get_acting_employee_profile(request.user)
     product_groups = _build_product_groups(company_id) if company_id else []
 
     recent_qs = Sale.objects.select_related(
@@ -81,9 +79,6 @@ def employee_entry(request):
         "product",
         "product__line",
         "payment_method",
-        "employee_recipient",
-        "employee_recipient__user",
-        "employee_recipient__user__profile",
     )
     if is_employee(request.user):
         recent_qs = recent_qs.filter(created_by=request.user)
@@ -93,11 +88,6 @@ def employee_entry(request):
     if request.method == "POST" and form.is_valid():
         try:
             on_account = bool(form.cleaned_data.get("on_account"))
-            app_settings = AppSettings.load()
-            paid_via_employee = (
-                bool(form.cleaned_data.get("paid_via_employee"))
-                and app_settings.sales_show_employee_payment
-            )
             customer = None
             if on_account:
                 customer = resolve_or_create_customer_for_sale(
@@ -105,49 +95,32 @@ def employee_entry(request):
                     phone=form.cleaned_data["reference_number"],
                     user=request.user,
                 )
-            employee_recipient = (
-                form.cleaned_data.get("employee_recipient") if paid_via_employee else None
-            )
-            payment_recipient = (
-                form.cleaned_data.get("payment_recipient")
-                if not on_account and not paid_via_employee
-                else None
-            )
             with transaction.atomic():
                 sale = create_sale(
                     company=form.cleaned_data["company"],
                     product=form.cleaned_data["product"],
                     reference_number=form.cleaned_data["reference_number"],
                     payer_name=form.cleaned_data["payer_name"],
-                    payment_method=form.cleaned_data["payment_method"]
-                    if not on_account and not paid_via_employee
-                    else None,
+                    payment_method=None if on_account else form.cleaned_data["payment_method"],
                     sell_price_actual=form.cleaned_data["sell_price_actual"],
                     notes=form.cleaned_data.get("notes") or "",
                     user=request.user,
                     is_esim=bool(form.cleaned_data.get("is_esim")),
                     on_account=on_account,
                     customer=customer,
-                    paid_via_employee=paid_via_employee,
-                    employee_recipient=employee_recipient,
-                    payment_recipient=payment_recipient,
+                    payment_recipient=None
+                    if on_account
+                    else form.cleaned_data.get("payment_recipient"),
                 )
                 outcome = finalize_sale_after_entry(
                     sale=sale,
                     user=request.user,
                     on_account=on_account,
-                    paid_via_employee=paid_via_employee,
                 )
             if outcome == "posted_debt":
                 messages.success(request, _("Recorded on account and posted to the customer."))
-            elif outcome in ("paid", "paid_employee"):
-                if paid_via_employee:
-                    messages.success(
-                        request,
-                        _("Sale recorded; payment credited to employee ledger."),
-                    )
-                else:
-                    messages.success(request, _("Sale recorded and marked paid."))
+            elif outcome == "paid":
+                messages.success(request, _("Sale recorded and marked paid."))
             elif on_account:
                 messages.success(request, _("Recorded as on-account; awaiting management approval."))
             else:
@@ -179,7 +152,6 @@ def employee_entry(request):
             "product_groups": product_groups,
             "companies": companies,
             "payment_methods": payment_methods,
-            "acting_employee": acting_employee,
             "selected_company_id": str(company_id or ""),
             "selected_line_id": selected_line_id,
             "selected_product_id": selected_product_id,
@@ -202,10 +174,6 @@ def employee_submit_customer_payment_submission(request):
     if not form.is_valid():
         flash_form_errors(request, form)
         return redirect("sales:employee_entry")
-    paid_via_employee = (
-        bool(form.cleaned_data.get("paid_via_employee"))
-        and app_settings.sales_show_employee_payment
-    )
     try:
         submission = submit_customer_payment_submission(
             customer=form.cleaned_data["customer"],
@@ -213,25 +181,13 @@ def employee_submit_customer_payment_submission(request):
             payment_method=form.cleaned_data.get("payment_method"),
             notes=form.cleaned_data.get("notes") or "",
             user=request.user,
-            paid_via_employee=paid_via_employee,
-            employee_recipient=form.cleaned_data.get("employee_recipient")
-            if paid_via_employee
-            else None,
-            payment_recipient=None
-            if paid_via_employee
-            else form.cleaned_data.get("payment_recipient"),
+            payment_recipient=form.cleaned_data.get("payment_recipient"),
         )
     except ValueError as exc:
         messages.error(request, str(exc))
     else:
         if finalize_payment_submission_after_entry(submission=submission, user=request.user):
-            if paid_via_employee:
-                messages.success(
-                    request,
-                    _("Payment recorded on the customer account and credited to employee ledger."),
-                )
-            else:
-                messages.success(request, _("Payment recorded on the customer account."))
+            messages.success(request, _("Payment recorded on the customer account."))
         else:
             messages.success(request, _("Payment submitted for management approval."))
     return redirect("sales:employee_entry")
@@ -391,7 +347,7 @@ def employee_sale_edit(request, pk):
     its initial state (see ``Sale.is_employee_modifiable``)."""
     sale = get_object_or_404(
         Sale.objects.select_related(
-            "company", "product", "product__line", "payment_method", "employee_recipient"
+            "company", "product", "product__line", "payment_method"
         ),
         pk=pk,
         created_by=request.user,
@@ -418,11 +374,6 @@ def employee_sale_edit(request, pk):
                     user=request.user,
                     payment_recipient=form.cleaned_data.get("payment_recipient"),
                 )
-                if sale.paid_via_employee:
-                    from employees.services import sync_sales_payment_ledger_for_sale
-
-                    sale.refresh_from_db()
-                    sync_sales_payment_ledger_for_sale(sale=sale, user=request.user)
             except ValueError as exc:
                 messages.error(request, str(exc))
             else:

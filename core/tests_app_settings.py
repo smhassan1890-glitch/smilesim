@@ -60,7 +60,6 @@ class AppSettingsViewTests(TestCase):
                 "require_payment_request_approval": "on",
                 "allow_sales_auto_create_customer": "",
                 "sales_show_record_payment": "on",
-                "sales_show_employee_payment": "on",
                 "default_language": "ar",
                 "default_theme": "dark",
                 "csrfmiddlewaretoken": token,

@@ -238,9 +238,7 @@ def customer_statement_csv(request, pk):
                 ref = entry.sale.reference_number if entry.sale else ""
             elif entry.entry_type == CustomerLedger.EntryType.PAYMENT:
                 payment = str(entry.amount)
-                if entry.payment and entry.payment.paid_via_employee:
-                    desc = str(_("To employee"))
-                elif entry.payment and entry.payment.payment_method:
+                if entry.payment and entry.payment.payment_method:
                     desc = entry.payment.payment_method.name
                 else:
                     desc = ""

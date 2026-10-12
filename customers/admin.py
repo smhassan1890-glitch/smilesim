@@ -29,12 +29,11 @@ class CustomerPaymentSubmissionAdmin(admin.ModelAdmin):
         "customer",
         "amount",
         "payment_method",
-        "paid_via_employee",
         "status",
         "created_by",
         "created_at",
     )
-    list_filter = ("status", "payment_method", "paid_via_employee")
+    list_filter = ("status", "payment_method")
     search_fields = ("customer__name", "notes")
     readonly_fields = ("created_at",)
 
@@ -45,11 +44,10 @@ class CustomerPaymentAdmin(admin.ModelAdmin):
         "customer",
         "amount",
         "payment_method",
-        "paid_via_employee",
         "created_by",
         "created_at",
     )
-    list_filter = ("payment_method", "paid_via_employee")
+    list_filter = ("payment_method",)
     search_fields = ("customer__name",)
     readonly_fields = ("created_at",)
 

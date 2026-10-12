@@ -35,9 +35,6 @@ def customer_payment_submissions_list(request):
             "payment_method",
             "payment_recipient",
             "created_by",
-            "employee_recipient",
-            "employee_recipient__user",
-            "employee_recipient__user__profile",
         )
         .order_by("created_at", "id")
     )
@@ -47,8 +44,6 @@ def customer_payment_submissions_list(request):
             Q(customer__name__icontains=q)
             | Q(created_by__username__icontains=q)
             | Q(payment_method__name__icontains=q)
-            | Q(employee_recipient__user__username__icontains=q)
-            | Q(employee_recipient__user__profile__full_name__icontains=q)
         )
     page_obj = paginate_request(request, qs)
     return render(

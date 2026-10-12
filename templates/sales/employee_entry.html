@@ -84,16 +84,6 @@
             <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-1">
               <div class="rd-field-label mb-0">{% trans "Where did you receive the money?" %}</div>
               <div class="d-flex flex-wrap gap-1">
-                {% if acting_employee and app_settings.sales_show_employee_payment %}
-                <button
-                  type="button"
-                  class="btn btn-sm btn-outline-info rd-employee-payment-toggle"
-                  id="rd-employee-payment-toggle"
-                  aria-pressed="false"
-                  data-on-label="{% trans 'Payment to employee: ON' %}"
-                  data-off-label="{% trans 'Payment to employee' %}"
-                >{% trans "Payment to employee" %}</button>
-                {% endif %}
                 <button
                   type="button"
                   class="btn btn-sm btn-outline-warning rd-on-account-toggle"
@@ -109,17 +99,6 @@
             {{ form.payment_recipient.errors }}
             {{ form.payment_recipient }}
             {{ form.on_account }}
-            {{ form.paid_via_employee }}
-            {% if acting_employee and app_settings.sales_show_employee_payment %}
-            <div id="rd-employee-payment-hint" class="small text-info mb-0 mt-1 d-flex justify-content-between align-items-start gap-2 flex-wrap" hidden>
-              <span>
-                {% blocktrans with name=acting_employee.display_name %}Payment will be recorded to your account: {{ name }}{% endblocktrans %}
-              </span>
-              <span class="tabular-nums text-nowrap {% if acting_employee.current_balance < 0 %}kpi-expense{% elif acting_employee.current_balance > 0 %}text-success{% endif %}">
-                {% trans "Your balance:" %} {{ acting_employee.current_balance|intcomma }}
-              </span>
-            </div>
-            {% endif %}
             <div class="row row-cols-5 g-1 mt-1 justify-content-center" id="payment-tiles">
               {% for pm in payment_methods %}
                 <div class="col">
@@ -240,15 +219,13 @@
           <div class="list-group-item d-flex flex-column gap-2 py-3">
             <div class="d-flex justify-content-between gap-3">
             <div class="min-w-0">
-              <div class="fw-semibold text-truncate">{{ s.product.display_name }}{% include "partials/sale_esim_badge.html" with sale=s %}{% include "partials/sale_loss_badge.html" with sale=s %}{% include "partials/sale_employee_payment_badge.html" with sale=s %}</div>
+              <div class="fw-semibold text-truncate">{{ s.product.display_name }}{% include "partials/sale_esim_badge.html" with sale=s %}{% include "partials/sale_loss_badge.html" with sale=s %}</div>
               {% if s.payer_name %}
                 <div class="rd-recent-payer text-truncate">{{ s.payer_name }}</div>
               {% endif %}
               <div class="small text-secondary text-truncate">
                 {{ s.reference_number }}
-                {% if s.paid_via_employee and s.employee_recipient %}
-                  · {% trans "Employee" %}: {{ s.employee_recipient.display_name }}
-                {% elif s.payment_method %}
+                {% if s.payment_method %}
                   · {{ s.payment_method.name|tdb }}
                 {% elif s.on_account %}
                   · {% trans "On account" %}
@@ -300,9 +277,6 @@
               {% trans "Applied immediately to the customer account." %}
             {% endif %}
           </p>
-          <p class="small text-secondary mb-2 rd-pay-sub-note" id="rd-pay-sub-note-employee" hidden>
-            {% trans "Applied immediately to the customer and your employee ledger." %}
-          </p>
           <div class="mb-3 rd-pay-sub-block">
             <label class="form-label small fw-semibold" for="rd-pay-sub-search">{% trans "Customer" %}</label>
             <input
@@ -325,33 +299,10 @@
             {{ pay_sub_form.amount.errors }}
           </div>
           <div class="mb-3 rd-pay-sub-block">
-            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-1">
-              <div class="form-label small fw-semibold mb-0">{% trans "Payment method" %}</div>
-              {% if acting_employee and app_settings.sales_show_employee_payment %}
-              <button
-                type="button"
-                class="btn btn-sm btn-outline-info rd-pay-sub-employee-toggle"
-                id="rd-pay-sub-employee-toggle"
-                aria-pressed="false"
-                data-on-label="{% trans 'Payment to employee: ON' %}"
-                data-off-label="{% trans 'Payment to employee' %}"
-              >{% trans "Payment to employee" %}</button>
-              {% endif %}
-            </div>
+            <div class="form-label small fw-semibold mb-1">{% trans "Payment method" %}</div>
             {{ pay_sub_form.payment_method }}
             {{ pay_sub_form.payment_recipient }}
-            {{ pay_sub_form.paid_via_employee }}
             {{ pay_sub_form.payment_method.errors }}
-            {% if acting_employee and app_settings.sales_show_employee_payment %}
-            <div id="rd-pay-sub-employee-hint" class="small text-info mb-0 mt-1 d-flex justify-content-between align-items-start gap-2 flex-wrap" hidden>
-              <span>
-                {% blocktrans with name=acting_employee.display_name %}Payment will be recorded to your account: {{ name }}{% endblocktrans %}
-              </span>
-              <span class="tabular-nums text-nowrap {% if acting_employee.current_balance < 0 %}kpi-expense{% elif acting_employee.current_balance > 0 %}text-success{% endif %}">
-                {% trans "Your balance:" %} {{ acting_employee.current_balance|intcomma }}
-              </span>
-            </div>
-            {% endif %}
             <div class="row row-cols-5 g-1 mt-1 justify-content-center" id="rd-pay-sub-payment-tiles">
               {% for pm in payment_methods %}
                 <div class="col">
@@ -499,47 +450,7 @@ function onRecipientKeydown(e) {
     var pmHid = document.getElementById("id_pay_sub_payment_method");
     var recipientPicker = document.getElementById("rd-pay-sub-recipient-picker");
     var recipientHid = document.getElementById("id_pay_sub_payment_recipient");
-    var empPayHid = document.getElementById("id_pay_sub_paid_via_employee");
-    var empPayBtn = document.getElementById("rd-pay-sub-employee-toggle");
-    var empPayHint = document.getElementById("rd-pay-sub-employee-hint");
-    var payTiles = document.getElementById("rd-pay-sub-payment-tiles");
-    var payNoteMethod = document.getElementById("rd-pay-sub-note-method");
-    var payNoteEmployee = document.getElementById("rd-pay-sub-note-employee");
     var tmr;
-    function isPaySubViaEmployee() {
-      return !!(empPayHid && empPayHid.value);
-    }
-    function syncPaySubNote(viaEmployee) {
-      if (payNoteMethod) payNoteMethod.hidden = !!viaEmployee;
-      if (payNoteEmployee) payNoteEmployee.hidden = !viaEmployee;
-    }
-    function setPaySubViaEmployee(enabled) {
-      if (!empPayHid || !empPayBtn) return;
-      if (enabled) {
-        empPayHid.value = "1";
-        empPayBtn.classList.remove("btn-outline-info");
-        empPayBtn.classList.add("btn-info");
-        empPayBtn.setAttribute("aria-pressed", "true");
-        empPayBtn.textContent = empPayBtn.getAttribute("data-on-label") || "ON";
-        if (payTiles) payTiles.classList.add("opacity-50");
-        if (pmHid) pmHid.value = "";
-        document.querySelectorAll("#rd-pay-sub-payment-tiles .rd-pay-sub-pm-tile").forEach(function (t) {
-          t.classList.remove("is-active");
-        });
-        clearRecipientPicker(recipientPicker, recipientHid);
-        if (empPayHint) empPayHint.hidden = false;
-        syncPaySubNote(true);
-      } else {
-        empPayHid.value = "";
-        empPayBtn.classList.remove("btn-info");
-        empPayBtn.classList.add("btn-outline-info");
-        empPayBtn.setAttribute("aria-pressed", "false");
-        empPayBtn.textContent = empPayBtn.getAttribute("data-off-label") || "Employee";
-        if (payTiles) payTiles.classList.remove("opacity-50");
-        if (empPayHint) empPayHint.hidden = true;
-        syncPaySubNote(false);
-      }
-    }
     function clearCustomer() {
       if (custHid) custHid.value = "";
       if (balLine) balLine.hidden = true;
@@ -597,9 +508,6 @@ function onRecipientKeydown(e) {
     }
     document.querySelectorAll("#rd-pay-sub-payment-tiles .rd-pay-sub-pm-tile").forEach(function (tile) {
       tile.addEventListener("click", function () {
-        if (isPaySubViaEmployee()) {
-          setPaySubViaEmployee(false);
-        }
         document.querySelectorAll("#rd-pay-sub-payment-tiles .rd-pay-sub-pm-tile").forEach(function (t) {
           t.classList.remove("is-active");
         });
@@ -617,11 +525,6 @@ function onRecipientKeydown(e) {
       });
       recipientPicker.addEventListener("keydown", onRecipientKeydown);
     }
-    if (empPayBtn) {
-      empPayBtn.addEventListener("click", function () {
-        setPaySubViaEmployee(!isPaySubViaEmployee());
-      });
-    }
     function resetPaySubModal() {
       clearCustomer();
       if (acBox) {
@@ -637,7 +540,6 @@ function onRecipientKeydown(e) {
       clearRecipientPicker(recipientPicker, recipientHid);
       if (custHid) custHid.value = "";
       if (balLine) balLine.hidden = true;
-      setPaySubViaEmployee(false);
       var notesDetails = document.getElementById("rd-pay-sub-notes-details");
       if (notesDetails) notesDetails.removeAttribute("open");
     }
@@ -687,13 +589,12 @@ function onRecipientKeydown(e) {
           window.alert(modal.getAttribute("data-msg-customer") || "");
           return;
         }
-        if (!isPaySubViaEmployee() && (!pmHid || !String(pmHid.value || "").trim())) {
+        if (!pmHid || !String(pmHid.value || "").trim()) {
           e.preventDefault();
           window.alert(modal.getAttribute("data-msg-payment") || "");
           return;
         }
         if (
-          !isPaySubViaEmployee() &&
           recipientPicker && !recipientPicker.hidden &&
           recipientHid && !String(recipientHid.value || "").trim()
         ) {
@@ -854,51 +755,11 @@ function onRecipientKeydown(e) {
     );
   }
 
-  function isPaidViaEmployee() {
-    var el = document.getElementById("id_paid_via_employee");
-    return !!(el && el.value);
-  }
-
-  function setPaidViaEmployee(enabled) {
-    var hid = document.getElementById("id_paid_via_employee");
-    var btn = document.getElementById("rd-employee-payment-toggle");
-    var paymentTiles = document.getElementById("payment-tiles");
-    var pmHidden = document.getElementById("id_payment_method");
-    var empHint = document.getElementById("rd-employee-payment-hint");
-    if (!hid || !btn) return;
-    if (enabled) {
-      setOnAccount(false);
-      hid.value = "1";
-      btn.classList.remove("btn-outline-info");
-      btn.classList.add("btn-info");
-      btn.setAttribute("aria-pressed", "true");
-      btn.textContent = btn.getAttribute("data-on-label") || "ON";
-      if (paymentTiles) paymentTiles.classList.add("opacity-50");
-      if (pmHidden) pmHidden.value = "";
-      document.querySelectorAll(".employee-payment-tile").forEach(function (t) {
-        t.classList.remove("is-active");
-      });
-      clearSaleRecipientPicker();
-      if (empHint) empHint.hidden = false;
-    } else {
-      hid.value = "";
-      btn.classList.remove("btn-info");
-      btn.classList.add("btn-outline-info");
-      btn.setAttribute("aria-pressed", "false");
-      btn.textContent = btn.getAttribute("data-off-label") || "Employee";
-      if (paymentTiles) paymentTiles.classList.remove("opacity-50");
-      if (empHint) empHint.hidden = true;
-    }
-  }
-
   function syncPaymentFromTile(tile) {
     if (!tile) return;
     if (isOnAccount()) {
       // Selecting a real method clears the on-account toggle.
       setOnAccount(false);
-    }
-    if (isPaidViaEmployee()) {
-      setPaidViaEmployee(false);
     }
     document.querySelectorAll(".employee-payment-tile").forEach(function (t) {
       t.classList.remove("is-active");
@@ -925,7 +786,6 @@ function onRecipientKeydown(e) {
     var pmHidden = document.getElementById("id_payment_method");
     if (!hid || !btn) return;
     if (enabled) {
-      setPaidViaEmployee(false);
       hid.value = "1";
       btn.classList.remove("btn-outline-warning");
       btn.classList.add("btn-warning");
@@ -983,13 +843,6 @@ function onRecipientKeydown(e) {
         setOnAccount(!isOnAccount());
       });
       setOnAccount(isOnAccount());
-    }
-    var empPayBtn = document.getElementById("rd-employee-payment-toggle");
-    if (empPayBtn) {
-      empPayBtn.addEventListener("click", function () {
-        setPaidViaEmployee(!isPaidViaEmployee());
-      });
-      setPaidViaEmployee(isPaidViaEmployee());
     }
     document.querySelectorAll(".employee-clipboard-paste-btn").forEach(function (pasteBtn) {
       var targetId = pasteBtn.getAttribute("data-paste-target");

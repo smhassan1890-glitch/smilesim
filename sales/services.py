@@ -46,22 +46,13 @@ def create_sale(
     is_esim: bool = False,
     on_account: bool = False,
     customer=None,
-    paid_via_employee: bool = False,
-    employee_recipient=None,
     payment_recipient: Optional[PaymentRecipient] = None,
 ) -> Sale:
     if product.line.company_id != company.id:
         raise ValueError(_("Product does not belong to the selected company."))
     if not company.is_active or not product.is_active:
         raise ValueError(_("Inactive company or product."))
-    if on_account and paid_via_employee:
-        raise ValueError(_("A sale cannot be both on-account and paid via employee."))
-    if paid_via_employee:
-        if employee_recipient is None:
-            raise ValueError(_("Employee payment sales require an employee recipient."))
-        if payment_method is not None:
-            raise ValueError(_("Employee payment sales must not have a payment method."))
-    elif on_account:
+    if on_account:
         if customer is None:
             raise ValueError(_("On-account sales require a customer."))
         if payment_method is not None:
@@ -69,7 +60,7 @@ def create_sale(
     else:
         if payment_method is None:
             raise ValueError(_("Payment method is required for non on-account sales."))
-    if paid_via_employee or on_account:
+    if on_account:
         payment_recipient = None
     else:
         payment_recipient = resolve_payment_recipient(payment_method, payment_recipient)
@@ -101,8 +92,6 @@ def create_sale(
         notes=notes.strip(),
         on_account=bool(on_account),
         customer=customer if on_account else None,
-        paid_via_employee=bool(paid_via_employee),
-        employee_recipient=employee_recipient if paid_via_employee else None,
     )
 
     CompanyBalanceTransaction.objects.create(
@@ -157,7 +146,7 @@ def update_sale_fields(
     before = snapshot(sale_locked, _SALE_AUDITED_FIELDS)
     cost = sale_locked.cost_price_snapshot
 
-    if sale_locked.paid_via_employee or sale_locked.on_account:
+    if sale_locked.on_account:
         sale_locked.payment_method = None
         sale_locked.payment_recipient = None
     elif payment_method is None:
@@ -210,10 +199,6 @@ def mark_sale_paid(*, sale: Sale, user) -> Sale:
     sale_locked.paid_by = user
     sale_locked.save(update_fields=["status", "paid_at", "paid_by", "updated_at"])
     audit_record(AuditAction.MARK_PAID, sale_locked, actor=user)
-    if sale_locked.paid_via_employee and sale_locked.employee_recipient_id:
-        from employees.services import record_sales_payment_received
-
-        record_sales_payment_received(sale=sale_locked, user=user)
     return sale_locked
 
 
@@ -263,11 +248,6 @@ def delete_sale_permanently(*, sale: Sale, user=None) -> None:
 
     if txns:
         CompanyBalanceTransaction.objects.filter(pk__in=[t.pk for t in txns]).delete()
-
-    if sale_locked.paid_via_employee and sale_locked.employee_recipient_id:
-        from employees.services import reverse_sales_payment_for_sale
-
-        reverse_sales_payment_for_sale(sale=sale_locked)
 
     if sale_locked.on_account and sale_locked.customer_id:
         from customers.models import Customer, CustomerLedger

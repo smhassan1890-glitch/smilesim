@@ -96,41 +96,16 @@ class SaleWorkflowSettingsTests(TestCase):
         self.assertEqual(sale.status, Sale.Status.PENDING)
         self.assertEqual(self.customer.current_balance, Decimal("30"))
 
-    def test_employee_payment_auto_paid_even_when_approval_required(self):
-        from employees.models import EmployeeProfile
-        from core.sale_workflow import finalize_sale_after_entry
-
+    def test_cash_stays_pending_when_payment_approval_on(self):
         AppSettings.objects.update_or_create(
             pk=1,
             defaults={"require_payment_request_approval": True},
         )
-        emp_user = User.objects.create_user(username="cashier2", password="x")
-        UserProfile.objects.update_or_create(
-            user=emp_user,
-            defaults={"role": UserProfile.Role.EMPLOYEE, "is_active_profile": True},
-        )
-        employee = EmployeeProfile.objects.create(
-            user=emp_user,
-            monthly_salary=Decimal("0"),
-        )
-        sale = create_sale(
-            company=self.company,
-            product=self.product,
-            reference_number="0503333333",
-            payer_name="Walk-in",
-            payment_method=None,
-            sell_price_actual=Decimal("20"),
-            notes="",
-            user=emp_user,
-            paid_via_employee=True,
-            employee_recipient=employee,
-        )
-        outcome = finalize_sale_after_entry(
-            sale=sale, user=emp_user, on_account=False, paid_via_employee=True
-        )
+        sale = self._cash_sale()
+        outcome = finalize_sale_after_entry(sale=sale, user=self.user, on_account=False)
         sale.refresh_from_db()
-        self.assertEqual(outcome, "paid_employee")
-        self.assertEqual(sale.status, Sale.Status.PAID)
+        self.assertEqual(outcome, "pending_payment")
+        self.assertEqual(sale.status, Sale.Status.PENDING)
 
     def test_settlement_auto_applied_when_approval_off(self):
         AppSettings.objects.update_or_create(
@@ -151,40 +126,21 @@ class SaleWorkflowSettingsTests(TestCase):
         self.assertEqual(sub.status, CustomerPaymentSubmission.Status.APPROVED)
         self.assertEqual(self.customer.current_balance, Decimal("-15"))
 
-    def test_employee_held_settlement_skips_approval_queue(self):
-        from employees.models import EmployeeLedgerEntry, EmployeeProfile
-
+    def test_settlement_queued_when_approval_on(self):
         AppSettings.objects.update_or_create(
             pk=1,
             defaults={"require_settlement_request_approval": True},
         )
-        emp_user = User.objects.create_user(username="anas", password="x")
-        UserProfile.objects.update_or_create(
-            user=emp_user,
-            defaults={"role": UserProfile.Role.EMPLOYEE, "is_active_profile": True},
-        )
-        employee = EmployeeProfile.objects.create(user=emp_user, monthly_salary=Decimal("0"))
         sub = submit_customer_payment_submission(
             customer=self.customer,
             amount=Decimal("50"),
-            payment_method=None,
+            payment_method=self.pm,
             notes="",
-            user=emp_user,
-            paid_via_employee=True,
-            employee_recipient=employee,
+            user=self.user,
         )
-        applied = finalize_payment_submission_after_entry(submission=sub, user=emp_user)
+        applied = finalize_payment_submission_after_entry(submission=sub, user=self.user)
         sub.refresh_from_db()
         self.customer.refresh_from_db()
-        employee.refresh_from_db()
-        self.assertTrue(applied)
-        self.assertEqual(sub.status, CustomerPaymentSubmission.Status.APPROVED)
-        self.assertEqual(self.customer.current_balance, Decimal("-50"))
-        self.assertEqual(employee.current_balance, Decimal("-50"))
-        self.assertTrue(
-            EmployeeLedgerEntry.objects.filter(
-                employee=employee,
-                entry_type=EmployeeLedgerEntry.EntryType.CUSTOMER_PAYMENT_RECEIVED,
-                amount=Decimal("-50"),
-            ).exists()
-        )
+        self.assertFalse(applied)
+        self.assertEqual(sub.status, CustomerPaymentSubmission.Status.AWAITING)
+        self.assertEqual(self.customer.current_balance, Decimal("0"))

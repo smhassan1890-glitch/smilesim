@@ -413,11 +413,6 @@
   color: var(--bs-primary);
 }
 
-/* d-flex beats [hidden] without !important — keep hint off until toggle is ON */
-#rd-employee-payment-hint[hidden] {
-  display: none !important;
-}
-
 /* "Received by" picker under the payment tiles: one row of compact chips */
 .rd-recipient-picker {
   display: flex;

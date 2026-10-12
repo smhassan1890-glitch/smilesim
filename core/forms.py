@@ -15,7 +15,6 @@ class AppSettingsForm(forms.ModelForm):
             "require_payment_request_approval",
             "allow_sales_auto_create_customer",
             "sales_show_record_payment",
-            "sales_show_employee_payment",
             "default_language",
             "default_theme",
         ]
@@ -25,7 +24,6 @@ class AppSettingsForm(forms.ModelForm):
             "require_payment_request_approval": _SWITCH,
             "allow_sales_auto_create_customer": _SWITCH,
             "sales_show_record_payment": _SWITCH,
-            "sales_show_employee_payment": _SWITCH,
             "default_language": forms.Select(attrs={"class": "form-select"}),
             "default_theme": forms.Select(attrs={"class": "form-select"}),
         }
@@ -35,7 +33,6 @@ class AppSettingsForm(forms.ModelForm):
             "require_payment_request_approval": _("Payment requests require approval"),
             "allow_sales_auto_create_customer": _("Create customers from sales entry"),
             "sales_show_record_payment": _("Record payment button on sales entry"),
-            "sales_show_employee_payment": _("Payment to employee button on sales entry"),
             "default_language": _("Default language"),
             "default_theme": _("Default theme"),
         }

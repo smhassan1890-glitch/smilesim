@@ -754,23 +754,6 @@ class RecipientFormErrorTests(TestCase):
         self.assertTrue(form.is_valid(), form.errors)
         self.assertIsNone(form.cleaned_data["payment_recipient"])
 
-    def test_paid_via_employee_with_stale_recipient_is_valid(self):
-        from core.models import AppSettings
-        from employees.models import EmployeeProfile
-
-        AppSettings.objects.update_or_create(
-            pk=1, defaults={"sales_show_employee_payment": True}
-        )
-        EmployeeProfile.objects.create(user=self.emp, monthly_salary=Decimal("0"))
-        self.emp.refresh_from_db()
-
-        form = self._sale_form(
-            paid_via_employee="1", payment_method="", payment_recipient=str(self.stale.pk)
-        )
-
-        self.assertTrue(form.is_valid(), form.errors)
-        self.assertIsNone(form.cleaned_data["payment_recipient"])
-
     def test_edit_form_invalid_recipient_id_reports_single_error(self):
         from sales.forms import ManagementSaleEditForm
 

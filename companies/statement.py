@@ -56,9 +56,6 @@ def company_statement_sales_queryset(company, request, *, date_from=None, date_t
         "payment_method",
         "created_by",
         "created_by__profile",
-        "employee_recipient",
-        "employee_recipient__user",
-        "employee_recipient__user__profile",
     )
     sales_q = (request.GET.get("sales_q") or "").strip()
     if sales_q:
@@ -107,8 +104,6 @@ def ledger_balance_snapshots(company) -> dict[int, dict[str, Decimal]]:
 
 
 def _sale_operator_label(sale: Sale) -> str:
-    if sale.employee_recipient_id:
-        return sale.employee_recipient.display_name
     profile = getattr(sale.created_by, "profile", None)
     if profile and profile.display_name:
         return profile.display_name

@@ -37,9 +37,6 @@ def management_sale_list(request):
         "product__line",
         "payment_method",
         "created_by",
-        "employee_recipient",
-        "employee_recipient__user",
-        "employee_recipient__user__profile",
     ).order_by("-created_at")
     form = ManagementSaleFilterForm(request.GET or None)
     data = form.cleaned_data if form.is_valid() else {}
@@ -83,9 +80,6 @@ def pending_payments(request):
             "payment_method",
             "payment_recipient",
             "created_by",
-            "employee_recipient",
-            "employee_recipient__user",
-            "employee_recipient__user__profile",
         )
         .annotate(
             method_active_recipients=Count(
@@ -131,9 +125,6 @@ def awaiting_approvals(request):
             "product__line",
             "customer",
             "created_by",
-            "employee_recipient",
-            "employee_recipient__user",
-            "employee_recipient__user__profile",
         )
         .order_by("-created_at")
     )

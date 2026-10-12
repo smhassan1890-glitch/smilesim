@@ -35,7 +35,6 @@ INSTALLED_APPS = [
     "expenses",
     "reports.apps.ReportsConfig",
     "customers",
-    "employees",
     "audit",
 ]
 

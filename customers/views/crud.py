@@ -136,9 +136,6 @@ def customer_detail(request, pk):
     payments = customer.payments.select_related(
         "payment_method",
         "created_by",
-        "employee_recipient",
-        "employee_recipient__user",
-        "employee_recipient__user__profile",
     ).order_by("-created_at")[:200]
 
     return render(

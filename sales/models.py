@@ -109,21 +109,6 @@ class Sale(models.Model):
         default=False,
         help_text=_("Customer credit sale: needs management approval and is settled later by a customer payment."),
     )
-    paid_via_employee = models.BooleanField(
-        _("payment to employee"),
-        default=False,
-        help_text=_(
-            "Cash received by an employee on behalf of the shop; no payment method at entry."
-        ),
-    )
-    employee_recipient = models.ForeignKey(
-        "employees.EmployeeProfile",
-        on_delete=models.PROTECT,
-        related_name="sales_received",
-        verbose_name=_("employee recipient"),
-        null=True,
-        blank=True,
-    )
     customer = models.ForeignKey(
         "customers.Customer",
         on_delete=models.PROTECT,

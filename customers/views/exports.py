@@ -104,11 +104,7 @@ def customer_payments_export_csv(request):
                 fmt_dt(p.created_at),
                 getattr(p.customer, "name", ""),
                 str(p.amount),
-                (
-                    _g("To employee")
-                    if p.paid_via_employee
-                    else getattr(p.payment_method, "name", "")
-                ),
+                getattr(p.payment_method, "name", ""),
                 getattr(p.created_by, "username", ""),
                 (p.notes or "").replace("\r\n", " ").replace("\n", " "),
             )

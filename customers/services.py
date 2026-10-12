@@ -300,8 +300,6 @@ def _apply_customer_payment(
     payment_method,
     notes: str,
     user,
-    paid_via_employee: bool = False,
-    employee_recipient=None,
     payment_recipient=None,
     submission: Optional[CustomerPaymentSubmission] = None,
 ) -> CustomerPayment:
@@ -313,13 +311,7 @@ def _apply_customer_payment(
     amt = Decimal(amount)
     if amt <= 0:
         raise ValueError(_("Payment amount must be positive."))
-    paid_via_employee = bool(paid_via_employee)
-    if paid_via_employee:
-        if employee_recipient is None:
-            raise ValueError(_("Employee recipient is required for employee-held payments."))
-        payment_method = None
-        payment_recipient = None
-    elif payment_method is None:
+    if payment_method is None:
         raise ValueError(_("Payment method is required."))
     else:
         payment_recipient = _resolve_customer_payment_recipient(
@@ -330,8 +322,6 @@ def _apply_customer_payment(
         amount=amt,
         payment_method=payment_method,
         payment_recipient=payment_recipient,
-        paid_via_employee=paid_via_employee,
-        employee_recipient=employee_recipient if paid_via_employee else None,
         notes=(notes or "").strip(),
         created_by=user,
     )
@@ -343,11 +333,6 @@ def _apply_customer_payment(
         created_by=user,
     )
     _apply_balance_delta(customer_locked, -amt)
-
-    if paid_via_employee:
-        from employees.services import record_customer_payment_received
-
-        record_customer_payment_received(payment=payment, user=user)
 
     reapply_settlements_for_customer(
         customer=customer_locked, triggering_payment=payment, user=user
@@ -361,10 +346,6 @@ def _apply_customer_payment(
             "amount": str(amt),
             "payment_method_id": getattr(payment_method, "pk", None),
             "payment_recipient_id": getattr(payment_recipient, "pk", None),
-            "paid_via_employee": paid_via_employee,
-            "employee_recipient_id": getattr(employee_recipient, "pk", None)
-            if paid_via_employee
-            else None,
         },
     )
     return payment
@@ -378,8 +359,6 @@ def record_customer_payment(
     payment_method,
     notes: str = "",
     user,
-    paid_via_employee: bool = False,
-    employee_recipient=None,
     payment_recipient=None,
 ) -> CustomerPayment:
     """Record a real-money payment from a customer and run FIFO settlement."""
@@ -393,8 +372,6 @@ def record_customer_payment(
         payment_method=payment_method,
         notes=notes or "",
         user=user,
-        paid_via_employee=paid_via_employee,
-        employee_recipient=employee_recipient,
         payment_recipient=payment_recipient,
     )
 
@@ -407,8 +384,6 @@ def submit_customer_payment_submission(
     payment_method,
     notes: str = "",
     user,
-    paid_via_employee: bool = False,
-    employee_recipient=None,
     payment_recipient=None,
 ) -> CustomerPaymentSubmission:
     """Create an awaiting payment submission (no ledger/balance change yet)."""
@@ -417,13 +392,7 @@ def submit_customer_payment_submission(
     amt = Decimal(amount or 0)
     if amt <= 0:
         raise ValueError(_("Payment amount must be positive."))
-    paid_via_employee = bool(paid_via_employee)
-    if paid_via_employee:
-        if employee_recipient is None:
-            raise ValueError(_("Employee recipient is required for employee-held payments."))
-        payment_method = None
-        payment_recipient = None
-    elif payment_method is None:
+    if payment_method is None:
         raise ValueError(_("Payment method is required."))
     else:
         payment_recipient = _resolve_customer_payment_recipient(payment_method, payment_recipient)
@@ -432,8 +401,6 @@ def submit_customer_payment_submission(
         amount=amt,
         payment_method=payment_method,
         payment_recipient=payment_recipient,
-        paid_via_employee=paid_via_employee,
-        employee_recipient=employee_recipient if paid_via_employee else None,
         notes=(notes or "").strip(),
         created_by=user,
         status=CustomerPaymentSubmission.Status.AWAITING,
@@ -447,10 +414,6 @@ def submit_customer_payment_submission(
             "amount": str(amt),
             "payment_method_id": getattr(payment_method, "pk", None),
             "payment_recipient_id": getattr(payment_recipient, "pk", None),
-            "paid_via_employee": paid_via_employee,
-            "employee_recipient_id": getattr(employee_recipient, "pk", None)
-            if paid_via_employee
-            else None,
         },
     )
     return sub
@@ -471,8 +434,6 @@ def approve_customer_payment_submission(
         payment_method=sub.payment_method,
         notes=sub.notes,
         user=user,
-        paid_via_employee=sub.paid_via_employee,
-        employee_recipient=sub.employee_recipient,
         payment_recipient=sub.payment_recipient,
         submission=sub,
     )
@@ -750,10 +711,6 @@ def delete_customer_payment(*, payment: CustomerPayment, user) -> None:
         )
 
     CustomerLedger.objects.filter(customer=customer_locked, payment=locked).delete()
-    if locked.paid_via_employee:
-        from employees.services import reverse_customer_payment_received
-
-        reverse_customer_payment_received(payment=locked)
     _apply_balance_delta(customer_locked, amount)
     payment_id = locked.pk
     locked.delete()

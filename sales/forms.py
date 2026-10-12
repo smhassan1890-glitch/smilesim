@@ -111,17 +111,6 @@ class EmployeeSaleForm(forms.Form):
         required=False,
         widget=forms.HiddenInput(attrs={"id": "id_on_account"}),
     )
-    paid_via_employee = forms.BooleanField(
-        label=_("Payment to employee"),
-        required=False,
-        widget=forms.HiddenInput(attrs={"id": "id_paid_via_employee"}),
-    )
-    employee_recipient = forms.ModelChoiceField(
-        label=_("Employee"),
-        queryset=None,
-        required=False,
-        widget=forms.HiddenInput(attrs={"id": "id_employee_recipient"}),
-    )
     is_esim = forms.BooleanField(
         label="",
         required=False,
@@ -147,13 +136,6 @@ class EmployeeSaleForm(forms.Form):
         if company_id:
             qs = qs.filter(line__company_id=company_id)
         self.fields["product"].queryset = qs
-        from employees.models import EmployeeProfile
-        from employees.services import get_acting_employee_profile
-
-        self.acting_employee = get_acting_employee_profile(self.user)
-        self.fields["employee_recipient"].queryset = EmployeeProfile.objects.filter(
-            is_active=True
-        ).select_related("user", "user__profile")
 
     def clean_reference_number(self):
         return validate_sale_phone_prefix(self.cleaned_data.get("reference_number") or "")
@@ -165,36 +147,13 @@ class EmployeeSaleForm(forms.Form):
         if company and product and product.line.company_id != company.id:
             raise forms.ValidationError(_("Selected product does not belong to the company."))
         on_account = bool(cleaned.get("on_account"))
-        paid_via_employee = bool(cleaned.get("paid_via_employee"))
         payment_method = cleaned.get("payment_method")
-        if paid_via_employee:
-            from core.models import AppSettings
-
-            if not AppSettings.load().sales_show_employee_payment:
-                raise forms.ValidationError(
-                    _("Payment to employee is disabled on the sales screen.")
-                )
-        if on_account and paid_via_employee:
-            raise forms.ValidationError(
-                _("Choose either on-account or payment to employee, not both.")
-            )
-        if paid_via_employee:
-            cleaned["payment_method"] = None
-            cleaned["payment_recipient"] = None
-            self.errors.pop("payment_recipient", None)
-            if not self.acting_employee:
-                raise forms.ValidationError(
-                    _("You are not registered as a payroll employee.")
-                )
-            cleaned["employee_recipient"] = self.acting_employee
-        elif on_account:
+        if on_account:
             if payment_method is not None:
                 cleaned["payment_method"] = None
             cleaned["payment_recipient"] = None
             self.errors.pop("payment_recipient", None)
-            cleaned["employee_recipient"] = None
         else:
-            cleaned["employee_recipient"] = None
             if payment_method is None:
                 cleaned["payment_recipient"] = None
                 self.add_error("payment_method", _("Pick a payment method."))
@@ -450,7 +409,7 @@ class ManagementSaleEditForm(forms.ModelForm):
         cleaned = super().clean()
         sale = self.instance
         payment_method = cleaned.get("payment_method")
-        if sale.paid_via_employee or sale.on_account:
+        if sale.on_account:
             cleaned["payment_recipient"] = None
             self.errors.pop("payment_recipient", None)
             return cleaned
@@ -469,19 +428,19 @@ class ManagementSaleEditForm(forms.ModelForm):
 
 
 class EmployeeSaleEditForm(ManagementSaleEditForm):
-    """Employee edit form — hides payment method for on-account / employee payments."""
+    """Employee edit form — hides payment method for on-account sales."""
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         sale = self.instance
-        if sale and (sale.paid_via_employee or sale.on_account):
+        if sale and sale.on_account:
             del self.fields["payment_method"]
             del self.fields["payment_recipient"]
 
     def clean(self):
         cleaned = super().clean()
         sale = self.instance
-        if sale and not sale.paid_via_employee and not sale.on_account:
+        if sale and not sale.on_account:
             if not cleaned.get("payment_method"):
                 self.add_error("payment_method", _("Pick a payment method."))
         return cleaned
